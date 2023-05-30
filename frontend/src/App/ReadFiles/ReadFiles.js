@@ -117,8 +117,14 @@ const ImageFromHandle = ({ fileHandle, handleForFolder }) => {
                     setSelectedFileHandle(fileHandle);
                 }
             }}
+            className={
+                classNames(
+                    styles.fileRow,
+                    fileHandle === selectedFileHandle ? styles.selectedFileRow : null
+                )
+            }
         >
-            <div className={styles.fileIcon} style={{ width: 32, height: 32 }}>
+            <div className={classNames(styles.cell, styles.fileIconImage)}>
                 <img
                     src={imageBlob}
                     style={{
@@ -143,19 +149,19 @@ const ImageFromHandle = ({ fileHandle, handleForFolder }) => {
                     }}
                 />
             </div>
-            <div className={styles.fileName}>
+            <div className={classNames(styles.cell, styles.fileName)}>
                 {(file && file.name) || ''}
             </div>
-            <div className={styles.fileType}>
+            <div className={classNames(styles.cell, styles.fileType)}>
                 {(file && file.type) || ''}
             </div>
-            <div className={styles.fileSize}>
+            <div className={classNames(styles.cell, styles.fileSize)}>
                 {
                     (file && humanReadableByteSize(file.size)) ||
                     ''
                 }
             </div>
-            <div className={styles.fileDimensions}>
+            <div className={classNames(styles.cell, styles.fileDimensions)}>
                 {
                     (
                         dimensions &&
@@ -166,7 +172,7 @@ const ImageFromHandle = ({ fileHandle, handleForFolder }) => {
                     ''
                 }
             </div>
-            <div className={styles.fileLastModified}>
+            <div className={classNames(styles.cell, styles.fileLastModified)}>
                 {
                     (
                         file &&
@@ -175,7 +181,7 @@ const ImageFromHandle = ({ fileHandle, handleForFolder }) => {
                     ''
                 }
             </div>
-            <div className={styles.metadataContents}>
+            <div className={classNames(styles.cell, styles.metadataContents)}>
                 {(() => {
                     if (metadataFileObject.status === 'found') {
                         const json = metadataFileObject.json;
@@ -216,7 +222,7 @@ const ImageFromHandle = ({ fileHandle, handleForFolder }) => {
                                         });
                                     }}
                                 >
-                                    Create metadata
+                                    Create
                                 </a>
                             </div>
                         );
@@ -257,27 +263,27 @@ ImageFromHandle.propTypes = {
 
 const ShowImagesWrapper = ({ handleForFolder, handlesForAssets }) => {
     return (
-        <div style={{ width: 830 }}>
-            <div style={{ display: 'flex' }}>
-                <div
-                    className={styles.fileIcon}
-                />
-                <div className={classNames(styles.fileName, 'bold')}>
+        <div style={{ width: 830, border: '1px solid #ccc', borderRadius: 10, overflow: 'hidden' }}>
+            <div className={styles.headerRow}>
+                <div className={classNames(styles.cell, styles.fileIconHeader)}>
+                    &nbsp;
+                </div>
+                <div className={classNames(styles.cell, styles.fileName, 'bold')}>
                     Name
                 </div>
-                <div className={classNames(styles.fileType, 'bold')}>
+                <div className={classNames(styles.cell, styles.fileType, 'bold')}>
                     Type
                 </div>
-                <div className={styles.fileSize}>
+                <div className={classNames(styles.cell, styles.fileSize)}>
                     Size
                 </div>
-                <div className={styles.fileDimensions}>
+                <div className={classNames(styles.cell, styles.fileDimensions)}>
                     Dimensions
                 </div>
-                <div className={styles.fileLastModified}>
+                <div className={classNames(styles.cell, styles.fileLastModified)}>
                     Last modified
                 </div>
-                <div className={styles.metadataContents}>
+                <div className={classNames(styles.cell, styles.metadataContents)}>
                     Metadata
                 </div>
             </div>
@@ -323,7 +329,7 @@ const SideViewForFile = function () {
 
     if (!selectedFileHandle) {
         return (
-            <div className={classNames(uc.italic, uc.color_777)}>
+            <div className={classNames(uc.italic, uc.color_777, uc.textAlignCenter)}>
                 No file selected
             </div>
         );
@@ -333,67 +339,77 @@ const SideViewForFile = function () {
             const url = URL.createObjectURL(blob);
 
             return (
-                <div>
-                    <div>
-                        <img
-                            src={url}
+                <div style={{ margin: 10 }}>
+                    <div style={{ display: 'grid' }}>
+                        <div
                             style={{
-                                maxWidth: '250px',
-                                maxHeight: '250px'
+                                margin: 'auto'
                             }}
-                        />
-                    </div>
-                    <div>
-                        Name: {selectedFile.name}
-                    </div>
-                    <div>
-                        Type: {selectedFile.type}
-                    </div>
-                    <div>
-                        Size: {humanReadableByteSize(selectedFile.size)}
-                    </div>
-                    <div>
-                        Last modified: {
-                            convertLocalTimeInIsoLikeFormat(selectedFile.lastModified)
-                        }
-                    </div>
-                    <div>
-                        <div>
-                            <button
-                                onClick={async () => {
-                                    const file = selectedFile;
-                                    const response = await ky.post('/api/identify-tags', {
-                                        method: 'POST',
-                                        headers: {
-                                            'Content-Type': file.type
-                                        },
-                                        body: file
-                                    });
-                                    const json = await response.json();
-
-                                    const arrTags = ((json) => {
-                                        const data = json.data;
-                                        const arr = [];
-                                        for (const tag of data.result.tags) {
-                                            arr.push(tag.tag.en);
-                                        }
-                                        return arr;
-                                    })(json);
-                                    setOutput(arrTags);
-                                }}
+                        >
+                            <div
+                                style={{ borderRadius: 10, overflow: 'hidden' }}
                             >
-                                Generate tags
-                            </button>
+                                <img
+                                    src={url}
+                                    style={{
+                                        maxWidth: '230px',
+                                        maxHeight: '230px'
+                                    }}
+                                />
+                            </div>
+                        </div>
+                    </div>
+                    <div style={{ marginTop: 10 }}>
+                        <div>
+                            Name: {selectedFile.name}
                         </div>
                         <div>
+                            Type: {selectedFile.type}
+                        </div>
+                        <div>
+                            Size: {humanReadableByteSize(selectedFile.size)}
+                        </div>
+                        <div>
+                            Last modified: {
+                                convertLocalTimeInIsoLikeFormat(selectedFile.lastModified)
+                            }
+                        </div>
+                        <div>
+                            <div style={{ marginTop: 10 }}>
+                                <button
+                                    onClick={async () => {
+                                        const file = selectedFile;
+                                        const response = await ky.post('/api/identify-tags', {
+                                            method: 'POST',
+                                            headers: {
+                                                'Content-Type': file.type
+                                            },
+                                            body: file
+                                        });
+                                        const json = await response.json();
+
+                                        const arrTags = ((json) => {
+                                            const data = json.data;
+                                            const arr = [];
+                                            for (const tag of data.result.tags) {
+                                                arr.push(tag.tag.en);
+                                            }
+                                            return arr;
+                                        })(json);
+                                        setOutput(arrTags);
+                                    }}
+                                >
+                                    Generate tags
+                                </button>
+                            </div>
                             {
                                 output && (
-                                    <div>
+                                    <div style={{ marginTop: 10 }}>
                                         <textarea
                                             value={JSON.stringify(output, null, 4)}
                                             readOnly
                                             style={{
-                                                width: 500,
+                                                width: '100%',
                                                 height: 200
                                             }}
                                         />
@@ -421,55 +437,73 @@ const ReadFiles = () => {
 
     return (
         <div>
-            <div>
-                <button
-                    onClick={async () => {
-                        let dirHandle;
-                        try {
-                            dirHandle = await showDirectoryPicker({
-                                // mode: 'read'
-                                mode: 'readwrite'
-                            });
-                        } catch (e) {
-                            console.error(e);
-                            // eslint-disable-next-line no-alert
-                            alert('An error occurred.\n\nPlease check the console for more details.');
-                            return;
-                        }
-                        setHandleForFolder(dirHandle);
-
-                        // Get handles for all the files
-                        const handles = [];
-                        for await (const entry of dirHandle.values()) {
-                            if (
-                                entry.kind === 'file' &&
-                                (
-                                    entry.name.endsWith('.jpeg') ||
-                                    entry.name.endsWith('.jpg')  ||
-                                    entry.name.endsWith('.png')
-                                )
-                            ) {
-                                handles.push(entry);
+            <div style={{ display: 'grid' }}>
+                <div style={{ margin: 'auto' }}>
+                    <button
+                        style={{
+                            cursor: 'pointer'
+                        }}
+                        onClick={async () => {
+                            let dirHandle;
+                            try {
+                                dirHandle = await showDirectoryPicker({
+                                    // mode: 'read'
+                                    mode: 'readwrite'
+                                });
+                            } catch (e) {
+                                console.error(e);
+                                // eslint-disable-next-line no-alert
+                                alert('An error occurred.\n\nPlease check the console for more details.');
+                                return;
                             }
-                        }
-                        setHandlesForAssets(handles);
-                    }}
-                >
-                    Open Folder
-                    <span style={{ color: '#999' }}>
-                        {' (from disk)'}
-                    </span>
-                </button>
+                            setHandleForFolder(dirHandle);
+
+                            // Get handles for all the files
+                            const handles = [];
+                            for await (const entry of dirHandle.values()) {
+                                if (
+                                    entry.kind === 'file' &&
+                                    (
+                                        entry.name.endsWith('.jpeg') ||
+                                        entry.name.endsWith('.jpg')  ||
+                                        entry.name.endsWith('.png')
+                                    )
+                                ) {
+                                    handles.push(entry);
+                                }
+                            }
+                            setHandlesForAssets(handles);
+                        }}
+                    >
+                        Open Folder
+                        <span style={{ color: '#999' }}>
+                            {' (from disk)'}
+                        </span>
+                    </button>
+                </div>
             </div>
 
-            <div style={{ marginTop: 10, display: 'flex' }}>
+            <div
+                style={{
+                    marginTop: 15,
+                    display: 'flex'
+                }}
+            >
                 <div>
                     <ShowImagesWrapper
                         handleForFolder={handleForFolder}
                         handlesForAssets={handlesForAssets}
                     />
                 </div>
-                <div>
+                <div
+                    style={{
+                        marginLeft: 15,
+                        border: '1px solid #ccc',
+                        borderRadius: 10,
+                        overflow: 'hidden',
+                        width: 252
+                    }}
+                >
                     <SideViewForFile />
                 </div>
             </div>

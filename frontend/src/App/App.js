@@ -6,8 +6,12 @@ import './App.css';
 
 const App = () => {
     return (
-        <div>
-            <ReadFiles />
+        <div style={{ display: 'grid' }}>
+            <div style={{ margin: 'auto' }}>
+                <div style={{ marginTop: 20 }}>
+                    <ReadFiles />
+                </div>
+            </div>
         </div>
     );
 };
