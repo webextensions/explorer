@@ -1,0 +1,13 @@
+{
+  "verbose": true,
+  "watch": [
+    "./backend/"
+  ],
+  "ext": "js json mjs",
+  "ignoreRoot": [
+    ".git"
+  ],
+  "ignore": [
+    "./node_modules/"
+  ]
+}

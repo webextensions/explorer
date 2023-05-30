@@ -1,0 +1,39 @@
+.fileIcon {
+    width: 32px;
+    height: 32px;
+}
+
+.fileName {
+    width: 200px;
+}
+
+.fileSize {
+    width: 100px;
+}
+
+.fileType {
+    width: 100px;
+}
+
+.fileDimensions {
+    width: 100px;
+}
+
+.fileLastModified {
+    width: 150px;
+}
+
+.metadataContents {
+    width: 120px;
+
+    & a {
+        color: #777;
+        text-decoration: none;
+        font-style: italic;
+
+        &:hover {
+            color: #333;
+            text-decoration: underline;
+        }
+    }
+}

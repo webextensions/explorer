@@ -1,0 +1,22 @@
+{
+    "result": {
+        "tags": [
+            {
+                "confidence": 85.123,
+                "tag": {
+                    "en": "flower"
+                }
+            },
+            {
+                "confidence": 7.012,
+                "tag": {
+                    "en": "soft"
+                }
+            }
+        ]
+    },
+    "status": {
+        "text": "",
+        "type": "success"
+    }
+}

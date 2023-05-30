@@ -1,0 +1,13 @@
+{
+    "root": true,
+
+    "extends": [
+        "eslint-config-ironplate/node"
+    ],
+
+    "rules": {
+        "no-restricted-globals": ["error", { "name": "__dirname" }],
+
+        "unicorn/prefer-node-protocol": ["error"]
+    }
+}
