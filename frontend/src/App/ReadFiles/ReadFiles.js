@@ -15,6 +15,19 @@ import { humanReadableByteSize } from 'helpmate/dist/misc/humanReadableByteSize.
 import uc from '../../utility-classes.css';
 import styles from './ReadFiles.css';
 
+import {
+    READYSTATE,
+
+    UNINITIALIZED,
+    LOADING,
+    LOADED,
+    ERROR,
+
+    ERROR_CODE,
+    ERROR_CODE_NOT_FOUND,
+    ERROR_CODE_UNKNOWN
+} from './readyStates.js';
+
 const selectedFileHandleAtom = atom(null);
 
 const convertLocalTimeInIsoLikeFormat = (timestamp, options = {}) => {
@@ -46,12 +59,336 @@ const timeout = function (ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 };
 
+const sortAndUniqueStringArray = function (array) {
+    return [...new Set(array)].sort();
+};
+
+const createMetadataForImage = async function ({ handleForFolder, imageFile, dimensions }) {
+    try {
+        const metadataFileHandle = (
+            await handleForFolder.getFileHandle(`${imageFile.name}.metadata.json`, { create: true })
+        );
+
+        // Write contents to file
+        const metadata = {
+            name: imageFile.name,
+            type: imageFile.type,
+            size: imageFile.size,
+            width: dimensions.width,
+            height: dimensions.height,
+            lastModified: imageFile.lastModified
+        };
+        const writable = await metadataFileHandle.createWritable();
+        await writable.write(JSON.stringify(metadata, null, 4));
+        await writable.close();
+
+        return [null, metadata];
+    } catch (e) {
+        return [e];
+    }
+};
+
+const GenerateMetadataFile = ({ fileHandle, handleForFolder, dimensions, onError, onSuccess }) => {
+    return (
+        <button
+            onClick={async () => {
+                const file = await fileHandle.getFile();
+
+                const [err, metadata] = await createMetadataForImage({
+                    handleForFolder,
+                    imageFile: file,
+                    dimensions
+                });
+
+                if (err) {
+                    onError(err);
+                } else {
+                    onSuccess(metadata);
+                }
+            }}
+        >
+            Generate metadata file
+        </button>
+    );
+};
+GenerateMetadataFile.propTypes = {
+    fileHandle: PropTypes.object.isRequired,
+    handleForFolder: PropTypes.object.isRequired,
+    dimensions: PropTypes.object.isRequired,
+    onError: PropTypes.func.isRequired,
+    onSuccess: PropTypes.func.isRequired
+};
+
+const BasicEditor = ({ value, saveEnabledByDefault, onEdit, onSave, textareaStyle }) => {
+    const [text, setText] = useState(value);
+    const [isDirty, setIsDirty] = useState(false);
+
+    useEffect(() => {
+        if (saveEnabledByDefault) {
+            setIsDirty(true);
+        }
+    }, [saveEnabledByDefault]);
+
+    const flagEnableSave = isDirty;
+
+    return (
+        <div>
+            <textarea
+                value={text}
+                onChange={(e) => {
+                    setText(e.target.value);
+                    setIsDirty(true);
+                    if (onEdit) {
+                        onEdit(e.target.value);
+                    }
+                }}
+                style={textareaStyle}
+            />
+            <div style={{ display: 'flex' }}>
+                <button
+                    disabled={!flagEnableSave}
+                    onClick={() => {
+                        onSave(text);
+                        setIsDirty(false);
+                    }}
+                >
+                    {flagEnableSave ? 'Save' : 'Saved'}
+                </button>
+                <button
+                    onClick={() => {
+                        const json = JSON.parse(text);
+                        const formattedJson = JSON.stringify(json, null, 4);
+                        if (formattedJson !== text) {
+                            setText(formattedJson);
+                            setIsDirty(true);
+                        }
+                    }}
+                >
+                    Format JSON
+                </button>
+            </div>
+        </div>
+    );
+};
+BasicEditor.propTypes = {
+    value: PropTypes.string.isRequired,
+    saveEnabledByDefault: PropTypes.bool,
+    onEdit: PropTypes.func,
+    onSave: PropTypes.func.isRequired,
+    textareaStyle: PropTypes.object
+};
+
+const MetadataEditor = function ({ handleForFolder, fileHandle, file, json }) {
+    const [tags, setTags] = useState([]);
+    const [flagEnableSave, setFlagEnableSave] = useState(false);
+
+    const [editorLastSetAt, setEditorLastSetAt] = useState(0);
+
+    const [jsonVal, setJsonVal] = useState(json);
+
+    return (
+        <div>
+            <BasicEditor
+                key={editorLastSetAt}
+                value={JSON.stringify(jsonVal, null, 4)}
+                textareaStyle={{
+                    width: '100%',
+                    height: '150px'
+                }}
+                saveEnabledByDefault={flagEnableSave}
+                onSave={async (text) => {
+                    const metadataFileHandle = (
+                        await handleForFolder.getFileHandle(
+                            fileHandle.name + '.metadata.json',
+                            { create: false }
+                        )
+                    );
+
+                    // Write contents to file
+                    const writable = await metadataFileHandle.createWritable();
+                    await writable.write(text);
+                    await writable.close();
+                }}
+            />
+
+            <div style={{ marginTop: 10, display: 'flex' }}>
+                <button
+                    onClick={async () => {
+                        const response = await ky.post('/api/identify-tags', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': file.type
+                            },
+                            body: file
+                        });
+                        const json = await response.json();
+
+                        const arrTags = ((json) => {
+                            const data = json.data;
+                            const arr = [];
+                            for (const tag of data.result.tags) {
+                                arr.push(tag.tag.en);
+                            }
+                            return arr;
+                        })(json);
+                        setTags(arrTags);
+                    }}
+                >
+                    Generate tags
+                </button>
+                <button
+                    onClick={async () => {
+                        const outputJson = JSON.parse(JSON.stringify(jsonVal));
+                        outputJson.tags = [
+                            ...outputJson.tags || [],
+                            ...tags
+                        ];
+                        outputJson.tags = sortAndUniqueStringArray(outputJson.tags);
+                        setJsonVal(outputJson);
+                        setFlagEnableSave(true);
+                        setEditorLastSetAt(Date.now());
+                    }}
+                >
+                    Sync tags to metadata
+                </button>
+            </div>
+            {
+                Array.isArray(tags) &&
+                (
+                    tags.length ?
+                        (
+                            <div style={{ marginTop: 10 }}>
+                                <textarea
+                                    value={JSON.stringify(tags, null, 4)}
+                                    readOnly
+                                    style={{
+                                        width: '100%',
+                                        height: 200
+                                    }}
+                                />
+                            </div>
+                        ) :
+                        null
+                )
+            }
+        </div>
+    );
+};
+MetadataEditor.propTypes = {
+    handleForFolder: PropTypes.object.isRequired,
+    fileHandle: PropTypes.object.isRequired,
+    file: PropTypes.object.isRequired,
+    json: PropTypes.object.isRequired
+};
+
+const MetadataFile = ({ fileHandle, file, handleForFolder, dimensions }) => {
+    const [metadataFileObject, setMetadataFileObject] = useState({
+        [READYSTATE]: UNINITIALIZED,
+        json: null
+    });
+
+    useEffect(() => {
+        (async () => {
+            setMetadataFileObject({
+                [READYSTATE]: LOADING,
+                json: null
+            });
+
+            try {
+                let metadataFileHandle;
+                try {
+                    metadataFileHandle = (
+                        await handleForFolder.getFileHandle(
+                            fileHandle.name + '.metadata.json',
+                            { create: false }
+                        )
+                    );
+                } catch (e) {
+                    setMetadataFileObject({
+                        [READYSTATE]: ERROR,
+                        [ERROR_CODE]: ERROR_CODE_NOT_FOUND,
+                        json: null
+                    });
+                    return;
+                }
+
+                const metadataFile = await metadataFileHandle.getFile();
+                const metadataFileContents = await metadataFile.text();
+                const metadataFileJson = JSON.parse(metadataFileContents);
+
+                setMetadataFileObject({
+                    [READYSTATE]: LOADED,
+                    json: metadataFileJson
+                });
+            } catch (e) {
+                console.log(e);
+                setMetadataFileObject({
+                    [READYSTATE]: ERROR,
+                    [ERROR_CODE]: ERROR_CODE_UNKNOWN,
+                    json: null
+                });
+                return;
+            }
+        })();
+    }, [fileHandle, handleForFolder]);
+
+    return (
+        <div>
+            {(() => {
+                if (metadataFileObject[READYSTATE] === ERROR) {
+                    if (metadataFileObject[ERROR_CODE] === ERROR_CODE_NOT_FOUND) {
+                        return (
+                            <GenerateMetadataFile
+                                fileHandle={fileHandle}
+                                handleForFolder={handleForFolder}
+                                dimensions={dimensions}
+                                onError={(e) => {
+                                    console.log(e);
+                                    setMetadataFileObject({
+                                        [READYSTATE]: ERROR,
+                                        [ERROR_CODE]: ERROR_CODE_UNKNOWN,
+                                        json: null
+                                    });
+                                }}
+                                onSuccess={(metadata) => {
+                                    setMetadataFileObject({
+                                        [READYSTATE]: LOADED,
+                                        json: metadata
+                                    });
+                                }}
+                            />
+                        );
+                    } else {
+                        return 'Unexpected Error';
+                    }
+                } else if (metadataFileObject[READYSTATE] === LOADED) {
+                    return (
+                        <MetadataEditor
+                            handleForFolder={handleForFolder}
+                            fileHandle={fileHandle}
+                            file={file}
+                            json={metadataFileObject.json}
+                        />
+                    );
+                } else {
+                    return null;
+                }
+            })()}
+        </div>
+    );
+};
+MetadataFile.propTypes = {
+    fileHandle: PropTypes.object.isRequired,
+    file: PropTypes.object.isRequired,
+    handleForFolder: PropTypes.object.isRequired,
+    dimensions: PropTypes.object.isRequired
+};
+
 const ImageFromHandle = ({ fileHandle, handleForFolder }) => {
     const [file, setFile] = useState(null);
     const [imageBlob, setImageBlob] = useState(null);
     const [dimensions, setDimensions] = useState(null);
 
-    // const [metadataFileStatus, setMetadataFileStatus] = useState(null);
     const [metadataFileObject, setMetadataFileObject] = useState({
         status: null,
         json: null
@@ -134,18 +471,15 @@ const ImageFromHandle = ({ fileHandle, handleForFolder }) => {
                     onLoad={function (img) {
                         // URL.revokeObjectURL(imageBlob);
 
-                        // const metadataFileHandle = (
-                        //     await handleForFolder.getFileHandle(`${file.name}.metadata.json`, { create: true })
-                        // );
-                        // const metadataFile = await metadataFileHandle.getFile();
-                        // const metadataFileContents = await metadataFile.text();
-                        // const metadata = JSON.parse(metadataFileContents);
-                        // console.log(metadata);
-
-                        setDimensions({
+                        const loadedDimensions = {
                             width: img.target.naturalWidth,
                             height: img.target.naturalHeight
-                        });
+                        };
+
+                        // FIXME: Use a better approach to compare objects (or at least use something like json-stable-stringify)
+                        if (JSON.stringify(dimensions) !== JSON.stringify(loadedDimensions)) {
+                            setDimensions(loadedDimensions);
+                        }
                     }}
                 />
             </div>
@@ -187,7 +521,7 @@ const ImageFromHandle = ({ fileHandle, handleForFolder }) => {
                         const json = metadataFileObject.json;
                         const tags = json.tags || [];
                         return (
-                            <div>
+                            <div title={tags.join('\n')}>
                                 {tags.length} tags
                             </div>
                         );
@@ -200,26 +534,23 @@ const ImageFromHandle = ({ fileHandle, handleForFolder }) => {
                                     onClick={async (evt) => {
                                         evt.preventDefault();
 
-                                        const metadataFileHandle = (
-                                            await handleForFolder.getFileHandle(`${file.name}.metadata.json`, { create: true })
-                                        );
-
-                                        // Write contents to file
-                                        const metadata = {
-                                            name: file.name,
-                                            type: file.type,
-                                            size: file.size,
-                                            width: dimensions.width,
-                                            height: dimensions.height,
-                                            lastModified: file.lastModified
-                                        };
-                                        const writable = await metadataFileHandle.createWritable();
-                                        await writable.write(JSON.stringify(metadata, null, 4));
-                                        await writable.close();
-                                        setMetadataFileObject({
-                                            status: 'found',
-                                            json: metadata
+                                        const [err, metadata] = await createMetadataForImage({
+                                            handleForFolder,
+                                            imageFile: file,
+                                            dimensions
                                         });
+
+                                        if (err) {
+                                            setMetadataFileObject({
+                                                status: 'error',
+                                                json: null
+                                            });
+                                        } else {
+                                            setMetadataFileObject({
+                                                status: 'found',
+                                                json: metadata
+                                            });
+                                        }
                                     }}
                                 >
                                     Create
@@ -307,16 +638,16 @@ const ShowImagesWrapper = ({ handleForFolder, handlesForAssets }) => {
     );
 };
 ShowImagesWrapper.propTypes = {
-    handleForFolder: PropTypes.object.isRequired,
+    handleForFolder: PropTypes.object,
     handlesForAssets: PropTypes.array.isRequired
 };
 
-const SideViewForFile = function () {
+const SideViewForFile = function ({ handleForFolder }) {
     // eslint-disable-next-line no-unused-vars
     const [selectedFileHandle, setSelectedFileHandle] = useAtom(selectedFileHandleAtom);
     const [selectedFile, setSelectedFile] = useState(null);
 
-    const [output, setOutput] = useState('');
+    const [dimensions, setDimensions] = useState(null);
 
     useEffect(() => {
         if (selectedFileHandle) {
@@ -355,6 +686,19 @@ const SideViewForFile = function () {
                                         maxWidth: '230px',
                                         maxHeight: '230px'
                                     }}
+                                    onLoad={function (img) {
+                                        // URL.revokeObjectURL(url);
+
+                                        const loadedDimensions = {
+                                            width: img.target.naturalWidth,
+                                            height: img.target.naturalHeight
+                                        };
+
+                                        // FIXME: Use a better approach to compare objects (or at least use something like json-stable-stringify)
+                                        if (JSON.stringify(dimensions) !== JSON.stringify(loadedDimensions)) {
+                                            setDimensions(loadedDimensions);
+                                        }
+                                    }}
                                 />
                             </div>
                         </div>
@@ -374,48 +718,21 @@ const SideViewForFile = function () {
                                 convertLocalTimeInIsoLikeFormat(selectedFile.lastModified)
                             }
                         </div>
-                        <div>
-                            <div style={{ marginTop: 10 }}>
-                                <button
-                                    onClick={async () => {
-                                        const file = selectedFile;
-                                        const response = await ky.post('/api/identify-tags', {
-                                            method: 'POST',
-                                            headers: {
-                                                'Content-Type': file.type
-                                            },
-                                            body: file
-                                        });
-                                        const json = await response.json();
-
-                                        const arrTags = ((json) => {
-                                            const data = json.data;
-                                            const arr = [];
-                                            for (const tag of data.result.tags) {
-                                                arr.push(tag.tag.en);
-                                            }
-                                            return arr;
-                                        })(json);
-                                        setOutput(arrTags);
-                                    }}
-                                >
-                                    Generate tags
-                                </button>
+                        <div style={{ marginTop: 10 }}>
+                            <div>
+                                Metadata:
                             </div>
-                            {
-                                output && (
-                                    <div style={{ marginTop: 10 }}>
-                                        <textarea
-                                            value={JSON.stringify(output, null, 4)}
-                                            readOnly
-                                            style={{
-                                                width: '100%',
-                                                height: 200
-                                            }}
-                                        />
-                                    </div>
-                                )
-                            }
+                            <div>
+                                {
+                                    dimensions && // Wait for "dimensions" to be setup
+                                    <MetadataFile
+                                        fileHandle={selectedFileHandle}
+                                        file={selectedFile}
+                                        handleForFolder={handleForFolder}
+                                        dimensions={dimensions}
+                                    />
+                                }
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -428,6 +745,9 @@ const SideViewForFile = function () {
             );
         }
     }
+};
+SideViewForFile.propTypes = {
+    handleForFolder: PropTypes.object.isRequired
 };
 
 const ReadFiles = () => {
@@ -504,7 +824,7 @@ const ReadFiles = () => {
                         width: 252
                     }}
                 >
-                    <SideViewForFile />
+                    <SideViewForFile handleForFolder={handleForFolder} />
                 </div>
             </div>
         </div>

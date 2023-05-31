@@ -27,6 +27,8 @@ const tagImage = async (fileContents) => {
     try {
         // DEBUG-HELPER: Useful for debugging/development
         const useHardCodedResponse = false;
+        // const useHardCodedResponse = true;
+
         if (useHardCodedResponse) {
             const response = await fs.promises.readFile(
                 path.resolve(__dirname, 'tag-image.dummy-data.json'),

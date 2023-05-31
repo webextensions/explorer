@@ -7,7 +7,9 @@ const stylelintConfig = {
         "stylelint-config-css-modules"
     ],
 
-    // "ignoreFiles": [],
+    "ignoreFiles": [
+        "src/styles-reset.css"
+    ],
 
     "rules": {
         "color-named": "never",
