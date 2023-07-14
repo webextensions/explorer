@@ -28,6 +28,9 @@ import {
     ERROR_CODE_UNKNOWN
 } from './readyStates.js';
 
+// TODO: FIXME: Various variable names have to be corrected as per their usage (since they were not adjusted properly
+//              in accordance with the recent code refactoring).
+
 const selectedFileHandleAtom = atom(null);
 
 const convertLocalTimeInIsoLikeFormat = (timestamp, options = {}) => {
@@ -384,7 +387,16 @@ MetadataFile.propTypes = {
     dimensions: PropTypes.object.isRequired
 };
 
-const ImageFromHandle = ({ fileHandle, handleForFolder }) => {
+const getRandomIntInclusive = function (min, max) {
+    min = Math.ceil(min);
+    max = Math.floor(max);
+    return Math.floor(Math.random() * (max - min + 1) + min); // The maximum is inclusive and the minimum is inclusive
+};
+
+const ImageFromAssetFile = ({
+    assetFile,
+    handleForFolder
+}) => {
     const [file, setFile] = useState(null);
     const [imageBlob, setImageBlob] = useState(null);
     const [dimensions, setDimensions] = useState(null);
@@ -398,13 +410,16 @@ const ImageFromHandle = ({ fileHandle, handleForFolder }) => {
     const [output, setOutput] = useState(null);
 
     useEffect(() => {
+        let delayedLoadTimer = null;
         (async () => {
-            const file = await fileHandle.getFile();
+            const file = assetFile;
             setFile(file);
 
-            const blob = new Blob([file], { type: file.type });
-            const url = URL.createObjectURL(blob);
-            setImageBlob(url);
+            delayedLoadTimer = setTimeout(() => {
+                const blob = new Blob([file], { type: file.type });
+                const url = URL.createObjectURL(blob);
+                setImageBlob(url);
+            }, getRandomIntInclusive(0, 100));
 
             try {
                 let metadataFileHandle;
@@ -440,7 +455,13 @@ const ImageFromHandle = ({ fileHandle, handleForFolder }) => {
                 return;
             }
         })();
-    }, [fileHandle, handleForFolder]);
+
+        return () => {
+            clearTimeout(delayedLoadTimer);
+
+            // URL.revokeObjectURL(imageBlob);
+        };
+    }, [assetFile, handleForFolder]);
 
     const [selectedFileHandle, setSelectedFileHandle] = useAtom(selectedFileHandleAtom);
 
@@ -448,16 +469,16 @@ const ImageFromHandle = ({ fileHandle, handleForFolder }) => {
         <div
             style={{ display: 'flex' }}
             onClick={async () => {
-                if (selectedFileHandle === fileHandle) {
+                if (selectedFileHandle === assetFile) {
                     setSelectedFileHandle(null);
                 } else {
-                    setSelectedFileHandle(fileHandle);
+                    setSelectedFileHandle(assetFile);
                 }
             }}
             className={
                 classNames(
                     styles.fileRow,
-                    fileHandle === selectedFileHandle ? styles.selectedFileRow : null
+                    assetFile === selectedFileHandle ? styles.selectedFileRow : null
                 )
             }
         >
@@ -587,12 +608,30 @@ const ImageFromHandle = ({ fileHandle, handleForFolder }) => {
         </div>
     );
 };
-ImageFromHandle.propTypes = {
-    fileHandle: PropTypes.object.isRequired,
+ImageFromAssetFile.propTypes = {
+    assetFile: PropTypes.object.isRequired,
     handleForFolder: PropTypes.object.isRequired
 };
 
-const ShowImagesWrapper = ({ handleForFolder, handlesForAssets }) => {
+const ShowImagesWrapper = ({
+    handleForFolder,
+    files
+}) => {
+    const [sortBy, setSortBy] = useState(null);
+
+    const sortedFiles = structuredClone(files);
+
+    if (sortedFiles && sortBy) {
+        sortedFiles.sort((a, b) => {
+            if (a[sortBy] < b[sortBy]) {
+                return -1;
+            } else if (a[sortBy] > b[sortBy]) {
+                return 1;
+            } else {
+                return 0;
+            }
+        });
+    }
     return (
         <div style={{ width: 830, border: '1px solid #ccc', borderRadius: 10, overflow: 'hidden' }}>
             <div className={styles.headerRow}>
@@ -605,7 +644,12 @@ const ShowImagesWrapper = ({ handleForFolder, handlesForAssets }) => {
                 <div className={classNames(styles.cell, styles.fileType, 'bold')}>
                     Type
                 </div>
-                <div className={classNames(styles.cell, styles.fileSize)}>
+                <div
+                    className={classNames(styles.cell, styles.fileSize)}
+                    onClick={() => {
+                        setSortBy('size');
+                    }}
+                >
                     Size
                 </div>
                 <div className={classNames(styles.cell, styles.fileDimensions)}>
@@ -621,13 +665,12 @@ const ShowImagesWrapper = ({ handleForFolder, handlesForAssets }) => {
             <div>
                 <Virtuoso
                     style={{ height: '500px' }}
-                    data={handlesForAssets}
-                    // totalCount={handlesForAssets.length}
-                    itemContent={(index, handleForAsset) => {
+                    data={sortedFiles}
+                    itemContent={(index, assetFile) => {
                         return (
-                            <ImageFromHandle
+                            <ImageFromAssetFile
                                 key={index}
-                                fileHandle={handleForAsset}
+                                assetFile={assetFile}
                                 handleForFolder={handleForFolder}
                             />
                         );
@@ -639,7 +682,7 @@ const ShowImagesWrapper = ({ handleForFolder, handlesForAssets }) => {
 };
 ShowImagesWrapper.propTypes = {
     handleForFolder: PropTypes.object,
-    handlesForAssets: PropTypes.array.isRequired
+    files: PropTypes.array.isRequired // TODO: Or null
 };
 
 const SideViewForFile = function ({ handleForFolder }) {
@@ -652,7 +695,7 @@ const SideViewForFile = function ({ handleForFolder }) {
     useEffect(() => {
         if (selectedFileHandle) {
             (async () => {
-                const file = await selectedFileHandle.getFile();
+                const file = selectedFileHandle;
                 setSelectedFile(file);
             })();
         }
@@ -751,7 +794,7 @@ SideViewForFile.propTypes = {
 };
 
 const ReadFiles = () => {
-    const [handlesForAssets, setHandlesForAssets] = useState([]);
+    const [files, setFiles] = useState(null);
 
     const [handleForFolder, setHandleForFolder] = useState(null);
 
@@ -792,7 +835,16 @@ const ReadFiles = () => {
                                     handles.push(entry);
                                 }
                             }
-                            setHandlesForAssets(handles);
+
+                            (async () => {
+                                const files = [];
+                                for (const handle of handles) {
+                                    const file = await handle.getFile();
+                                    files.push(file);
+                                }
+                                setFiles(files);
+                            })();
+                            setFiles(files);
                         }}
                     >
                         Open Folder
@@ -812,7 +864,7 @@ const ReadFiles = () => {
                 <div>
                     <ShowImagesWrapper
                         handleForFolder={handleForFolder}
-                        handlesForAssets={handlesForAssets}
+                        files={files}
                     />
                 </div>
                 <div
