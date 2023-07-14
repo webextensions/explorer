@@ -47,6 +47,7 @@
         "eslint-plugin-react-hooks": "^4.6.0",
         "eslint-plugin-unicorn": "^47.0.0",
         "helpmate": "^1.5.5",
+        "idb-keyval": "^6.2.1",
         "jotai": "^2.1.0",
         "ky": "^0.33.3",
         "nodemon": "^2.0.22",
