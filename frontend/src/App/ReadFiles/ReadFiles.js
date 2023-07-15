@@ -95,7 +95,7 @@ const GenerateMetadataFile = ({ fileHandle, handleForFolder, dimensions, onError
     return (
         <button
             onClick={async () => {
-                const file = await fileHandle.getFile();
+                const file = fileHandle;
 
                 const [err, metadata] = await createMetadataForImage({
                     handleForFolder,
