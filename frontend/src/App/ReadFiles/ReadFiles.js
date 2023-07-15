@@ -726,6 +726,29 @@ ImageFromAssetFile.propTypes = {
     handleForFolder: PropTypes.object.isRequired
 };
 
+const sortFnByField = (field) => {
+    return (a, b) => {
+        if (a[field] < b[field]) {
+            return -1;
+        } else if (a[field] > b[field]) {
+            return 1;
+        } else {
+            return 0;
+        }
+    };
+};
+const sortFnByFieldReverse = (field) => {
+    return (a, b) => {
+        if (a[field] < b[field]) {
+            return 1;
+        } else if (a[field] > b[field]) {
+            return -1;
+        } else {
+            return 0;
+        }
+    };
+};
+
 const ShowImagesWrapper = ({
     handleForFolder,
     files
@@ -734,16 +757,14 @@ const ShowImagesWrapper = ({
 
     const sortedFiles = structuredClone(files);
 
-    if (sortedFiles && sortBy) {
-        sortedFiles.sort((a, b) => {
-            if (a[sortBy] < b[sortBy]) {
-                return -1;
-            } else if (a[sortBy] > b[sortBy]) {
-                return 1;
+    if (sortedFiles) {
+        if (sortBy && sortBy.field === 'size') {
+            if (sortBy.reverse) {
+                sortedFiles.sort(sortFnByFieldReverse(sortBy.field));
             } else {
-                return 0;
+                sortedFiles.sort(sortFnByField(sortBy.field));
             }
-        });
+        }
     }
     return (
         <div style={{ width: 830, border: '1px solid #ccc', borderRadius: 10, overflow: 'hidden' }}>
@@ -760,7 +781,13 @@ const ShowImagesWrapper = ({
                 <div
                     className={classNames(styles.cell, styles.fileSize)}
                     onClick={() => {
-                        setSortBy('size');
+                        if (sortBy && sortBy.field === 'size' && !sortBy.reverse) {
+                            setSortBy({ field: 'size', reverse: true });
+                        } else if (sortBy && sortBy.field === 'size' && sortBy.reverse) {
+                            setSortBy(null);
+                        } else {
+                            setSortBy({ field: 'size', reverse: false });
+                        }
                     }}
                 >
                     Size
@@ -783,9 +810,10 @@ const ShowImagesWrapper = ({
                     atBottomThreshold={400}
                     atTopThreshold={400}
                     itemContent={(index, assetFile) => {
+                        const fileName = assetFile.name;
                         return (
                             <ImageFromAssetFile
-                                key={index}
+                                key={fileName}
                                 assetFile={assetFile}
                                 handleForFolder={handleForFolder}
                             />
