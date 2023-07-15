@@ -34,8 +34,10 @@ import {
 //              in accordance with the recent code refactoring).
 
 // DEV-HELPER
-window.trackTime_dbRead = 0;
-window.trackTime_dbWrite = 0;
+window.trackTime_dbReadProps = 0;
+window.trackTime_dbReadThumb32 = 0;
+window.trackTime_dbWriteProps = 0;
+window.trackTime_dbWriteThumb32 = 0;
 
 const CLEAR_INDEXEDDB = false; // DEV-HELPER
 // const CLEAR_INDEXEDDB = true; // DEV-HELPER
@@ -491,40 +493,53 @@ const ImageFromAssetFile = ({
             delayedLoadTimer = setTimeout(async () => {
                 const imageBlob = new Blob([file], { type: file.type });
 
-                const idInDb = `${file.name}:${file.lastModified}:${file.size}`;
+                const USE_INDEXEDDB = true; // DEV-HELPER
+                // const USE_INDEXEDDB = false; // DEV-HELPER
 
-                const readTimeBegin = Date.now();
-                const imageDataFromDb = await get(idInDb);
-                const readTimeEnd = Date.now();
-                window.trackTime_dbRead += (readTimeEnd - readTimeBegin);
+                const idInDbForProps   = `${file.name}:${file.lastModified}:${file.size}:props`;
+                const idInDbForThumb32 = `${file.name}:${file.lastModified}:${file.size}:thumb32`;
 
-                const USE_CACHE = true; // DEV-HELPER
-                // const USE_CACHE = false; // DEV-HELPER
-
-                let thumb32Blob;
-                let dimensions;
-
-                if (USE_CACHE && imageDataFromDb) {
-                    thumb32Blob = imageDataFromDb.thumb32Blob;
-                    dimensions = imageDataFromDb.dimensions;
-                } else {
-                    thumb32Blob = await resizeImageBlob(imageBlob, 32, file.type);
-                    dimensions = await getImageDimensionsFromBlob(imageBlob);
+                let props;
+                if (USE_INDEXEDDB) {
+                    const begin = Date.now();
+                    const propsFromDb = await get(idInDbForProps);
+                    props = propsFromDb;
+                    const end = Date.now();
+                    window.trackTime_dbReadProps += (end - begin);
                 }
-                setDimensions(dimensions);
-
-                const url = URL.createObjectURL(thumb32Blob);
-
-                if (USE_CACHE && !imageDataFromDb) {
-                    const writeTimeBegin = Date.now();
-                    await set(idInDb, {
-                        thumb32Blob,
-                        dimensions
-                    });
-                    const writeTimeEnd = Date.now();
-                    window.trackTime_dbWrite += (writeTimeEnd - writeTimeBegin);
+                if (!props) {
+                    const computedDimensions = await getImageDimensionsFromBlob(imageBlob);
+                    props = {
+                        dimensions: computedDimensions
+                    };
+                }
+                // FIXME: "react/prop-types" is getting applied incorrectly here since we set the vatiable name as "props"
+                setDimensions(props.dimensions); // eslint-disable-line react/prop-types
+                if (USE_INDEXEDDB) {
+                    const begin = Date.now();
+                    await set(idInDbForProps, props);
+                    const end = Date.now();
+                    window.trackTime_dbWriteProps += (end - begin);
                 }
 
+                let thumb32;
+                if (USE_INDEXEDDB) {
+                    const begin = Date.now();
+                    thumb32 = await get(idInDbForThumb32);
+                    const end = Date.now();
+                    window.trackTime_dbReadThumb32 += (end - begin);
+                }
+                if (!thumb32) {
+                    thumb32 = await resizeImageBlob(imageBlob, 32, file.type);
+                }
+                if (USE_INDEXEDDB) {
+                    const begin = Date.now();
+                    const thumb32Blob = thumb32;
+                    await set(idInDbForThumb32, thumb32Blob);
+                    const end = Date.now();
+                    window.trackTime_dbWriteThumb32 += (end - begin);
+                }
+                const url = URL.createObjectURL(thumb32);
                 setImageBlob(url);
             }, getRandomIntInclusive(0, 100));
             // });
