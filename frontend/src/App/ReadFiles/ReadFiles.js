@@ -10,6 +10,8 @@ import ky from 'ky';
 
 import { atom, useAtom } from 'jotai';
 
+import { get, set, clear } from 'idb-keyval';
+
 import { humanReadableByteSize } from 'helpmate/dist/misc/humanReadableByteSize.js';
 
 import uc from '../../utility-classes.css';
@@ -31,6 +33,16 @@ import {
 // TODO: FIXME: Various variable names have to be corrected as per their usage (since they were not adjusted properly
 //              in accordance with the recent code refactoring).
 
+// DEV-HELPER
+window.trackTime_dbRead = 0;
+window.trackTime_dbWrite = 0;
+
+const CLEAR_INDEXEDDB = false; // DEV-HELPER
+// const CLEAR_INDEXEDDB = true; // DEV-HELPER
+if (CLEAR_INDEXEDDB) {
+    clear();
+}
+
 const selectedFileHandleAtom = atom(null);
 
 const convertLocalTimeInIsoLikeFormat = (timestamp, options = {}) => {
@@ -47,6 +59,66 @@ const convertLocalTimeInIsoLikeFormat = (timestamp, options = {}) => {
     } else {
         return 'NA';
     }
+};
+
+const getImageDimensionsFromBlob = async function (imageBlob) {
+    const imageBitmap = await createImageBitmap(imageBlob);
+
+    const {
+        width,
+        height
+    } = imageBitmap;
+
+    return {
+        width,
+        height
+    };
+};
+
+const resizeImageBlob = async function (imageBlob, maxSize, mimeType) {
+    // Create a canvas element with the maximum size
+    const canvas = document.createElement('canvas');
+    canvas.width = maxSize;
+    canvas.height = maxSize;
+
+    // Get the canvas context
+    const ctx = canvas.getContext('2d');
+
+    // Create an image element
+    const img = document.createElement('img');
+
+    // Set the image element's src attribute to the image data
+    img.src = URL.createObjectURL(imageBlob);
+
+    // Wait for the image to load
+    await new Promise((resolve, reject) => {
+        img.addEventListener('load', resolve);
+        img.addEventListener('error', reject);
+    });
+
+    // Get the image's width and height
+    const { width, height } = img;
+
+    // Calculate the new width and height
+    let newWidth,
+        newHeight;
+    if (width > height) {
+        newWidth = maxSize;
+        newHeight = (height / width) * maxSize;
+    } else {
+        newWidth = (width / height) * maxSize;
+        newHeight = maxSize;
+    }
+
+    // Draw the image on the canvas
+    ctx.drawImage(img, 0, 0, newWidth, newHeight);
+
+    // Convert the canvas to a blob
+    return new Promise((resolve) => {
+        canvas.toBlob((blob) => {
+            resolve(blob);
+        }, mimeType);
+    });
 };
 
 // eslint-disable-next-line no-unused-vars
@@ -416,11 +488,46 @@ const ImageFromAssetFile = ({
             const file = assetFile;
             setFile(file);
 
-            delayedLoadTimer = setTimeout(() => {
-                const blob = new Blob([file], { type: file.type });
-                const url = URL.createObjectURL(blob);
+            delayedLoadTimer = setTimeout(async () => {
+                const imageBlob = new Blob([file], { type: file.type });
+
+                const idInDb = `${file.name}:${file.lastModified}:${file.size}`;
+
+                const readTimeBegin = Date.now();
+                const imageDataFromDb = await get(idInDb);
+                const readTimeEnd = Date.now();
+                window.trackTime_dbRead += (readTimeEnd - readTimeBegin);
+
+                const USE_CACHE = true; // DEV-HELPER
+                // const USE_CACHE = false; // DEV-HELPER
+
+                let thumb32Blob;
+                let dimensions;
+
+                if (USE_CACHE && imageDataFromDb) {
+                    thumb32Blob = imageDataFromDb.thumb32Blob;
+                    dimensions = imageDataFromDb.dimensions;
+                } else {
+                    thumb32Blob = await resizeImageBlob(imageBlob, 32, file.type);
+                    dimensions = await getImageDimensionsFromBlob(imageBlob);
+                }
+                setDimensions(dimensions);
+
+                const url = URL.createObjectURL(thumb32Blob);
+
+                if (USE_CACHE && !imageDataFromDb) {
+                    const writeTimeBegin = Date.now();
+                    await set(idInDb, {
+                        thumb32Blob,
+                        dimensions
+                    });
+                    const writeTimeEnd = Date.now();
+                    window.trackTime_dbWrite += (writeTimeEnd - writeTimeBegin);
+                }
+
                 setImageBlob(url);
             }, getRandomIntInclusive(0, 100));
+            // });
 
             try {
                 let metadataFileHandle;
@@ -490,18 +597,8 @@ const ImageFromAssetFile = ({
                         maxWidth: 32,
                         maxHeight: 32
                     }}
-                    onLoad={function (img) {
+                    onLoad={function () {
                         // URL.revokeObjectURL(imageBlob);
-
-                        const loadedDimensions = {
-                            width: img.target.naturalWidth,
-                            height: img.target.naturalHeight
-                        };
-
-                        // FIXME: Use a better approach to compare objects (or at least use something like json-stable-stringify)
-                        if (JSON.stringify(dimensions) !== JSON.stringify(loadedDimensions)) {
-                            setDimensions(loadedDimensions);
-                        }
                     }}
                 />
             </div>
@@ -667,6 +764,9 @@ const ShowImagesWrapper = ({
                 <Virtuoso
                     style={{ height: '500px' }}
                     data={sortedFiles}
+                    increaseViewportBy={20}
+                    atBottomThreshold={400}
+                    atTopThreshold={400}
                     itemContent={(index, assetFile) => {
                         return (
                             <ImageFromAssetFile
