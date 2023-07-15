@@ -222,6 +222,7 @@ const MetadataEditor = function ({ handleForFolder, fileHandle, file, json }) {
                             headers: {
                                 'Content-Type': file.type
                             },
+                            timeout: 120000,
                             body: file
                         });
                         const json = await response.json();
