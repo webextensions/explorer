@@ -581,8 +581,9 @@ const ImageFromAssetFile = ({
                 }
                 const url = URL.createObjectURL(thumb32);
                 setImageBlob(url);
-            }, getRandomIntInclusive(100, 200)); // Some delay beyond 100ms to allow for the "useEffect cancel" (clearTimeout) to take effect when the user is scrolling very fast
-            // });
+            // Some delay to allow for the "useEffect cancel" (clearTimeout) to take effect when the user is scrolling very fast
+            // }, getRandomIntInclusive(100, 200));
+            }, 150);
         })();
 
         return () => {
