@@ -39,6 +39,8 @@ window.trackTime_dbReadThumb32 = 0;
 window.trackTime_dbWriteProps = 0;
 window.trackTime_dbWriteThumb32 = 0;
 
+window.count_VirtuosoExecuteSlowOperation = 0;
+
 const CLEAR_INDEXEDDB = false; // DEV-HELPER
 // const CLEAR_INDEXEDDB = true; // DEV-HELPER
 if (CLEAR_INDEXEDDB) {
@@ -491,6 +493,44 @@ const ImageFromAssetFile = ({
             setFile(file);
 
             delayedLoadTimer = setTimeout(async () => {
+                window.count_VirtuosoExecuteSlowOperation++;
+
+                (async () => {
+                    try {
+                        let metadataFileHandle;
+                        try {
+                            metadataFileHandle = (
+                                await handleForFolder.getFileHandle(
+                                    `${file.name}.metadata.json`
+                                    // { create: true }
+                                )
+                            );
+                        } catch (e) {
+                            setMetadataFileObject({
+                                status: 'not-found',
+                                json: null
+                            });
+                            return;
+                        }
+
+                        const metadataFile = await metadataFileHandle.getFile();
+                        const metadataFileContents = await metadataFile.text();
+
+                        const json = JSON.parse(metadataFileContents);
+                        setMetadataFileObject({
+                            status: 'found',
+                            json
+                        });
+                    } catch (err) {
+                        console.log(err);
+                        setMetadataFileObject({
+                            status: 'error',
+                            json: null
+                        });
+                        return;
+                    }
+                })();
+
                 const imageBlob = new Blob([file], { type: file.type });
 
                 const USE_INDEXEDDB = true; // DEV-HELPER
@@ -541,42 +581,8 @@ const ImageFromAssetFile = ({
                 }
                 const url = URL.createObjectURL(thumb32);
                 setImageBlob(url);
-            }, getRandomIntInclusive(0, 100));
+            }, getRandomIntInclusive(100, 200)); // Some delay beyond 100ms to allow for the "useEffect cancel" (clearTimeout) to take effect when the user is scrolling very fast
             // });
-
-            try {
-                let metadataFileHandle;
-                try {
-                    metadataFileHandle = (
-                        await handleForFolder.getFileHandle(
-                            `${file.name}.metadata.json`
-                            // { create: true }
-                        )
-                    );
-                } catch (e) {
-                    setMetadataFileObject({
-                        status: 'not-found',
-                        json: null
-                    });
-                    return;
-                }
-
-                const metadataFile = await metadataFileHandle.getFile();
-                const metadataFileContents = await metadataFile.text();
-
-                const json = JSON.parse(metadataFileContents);
-                setMetadataFileObject({
-                    status: 'found',
-                    json
-                });
-            } catch (err) {
-                console.log(err);
-                setMetadataFileObject({
-                    status: 'error',
-                    json: null
-                });
-                return;
-            }
         })();
 
         return () => {
@@ -806,9 +812,12 @@ const ShowImagesWrapper = ({
                 <Virtuoso
                     style={{ height: '500px' }}
                     data={sortedFiles}
-                    increaseViewportBy={20}
-                    atBottomThreshold={400}
-                    atTopThreshold={400}
+
+                    // Adjust UX+performance:
+                    //     * Higher value here means faster rendering when scrolling to nearby items (eg: pressing down arrow on keyboard)
+                    //     * Higher value here means slower rendering when scrolling to far away items (eg: making huge scroll jump with mouse)
+                    increaseViewportBy={500}
+
                     itemContent={(index, assetFile) => {
                         const fileName = assetFile.name;
                         return (
