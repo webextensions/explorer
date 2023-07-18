@@ -10,7 +10,10 @@ import ky from 'ky';
 
 import { atom, useAtom } from 'jotai';
 
+import pMemoize from 'p-memoize';
+
 import { get, set, clear } from 'idb-keyval';
+import { getBatched } from './idbBatched.js';
 
 import { humanReadableByteSize } from 'helpmate/dist/misc/humanReadableByteSize.js';
 
@@ -46,6 +49,15 @@ const CLEAR_INDEXEDDB = false; // DEV-HELPER
 if (CLEAR_INDEXEDDB) {
     clear();
 }
+
+const cacheMap = new Map();
+window.cacheMap = cacheMap;
+const getBatchedMemoized = pMemoize(
+    getBatched,
+    {
+        cache: cacheMap
+    }
+);
 
 const selectedFileHandleAtom = atom(null);
 
@@ -496,6 +508,7 @@ const ImageFromAssetFile = ({
                 window.count_VirtuosoExecuteSlowOperation++;
 
                 (async () => {
+                    if (!delayedLoadTimer) { return; }
                     try {
                         let metadataFileHandle;
                         try {
@@ -505,6 +518,7 @@ const ImageFromAssetFile = ({
                                     // { create: true }
                                 )
                             );
+                            if (!delayedLoadTimer) { return; }
                         } catch (e) {
                             setMetadataFileObject({
                                 status: 'not-found',
@@ -514,7 +528,9 @@ const ImageFromAssetFile = ({
                         }
 
                         const metadataFile = await metadataFileHandle.getFile();
+                        if (!delayedLoadTimer) { return; }
                         const metadataFileContents = await metadataFile.text();
+                        if (!delayedLoadTimer) { return; }
 
                         const json = JSON.parse(metadataFileContents);
                         setMetadataFileObject({
@@ -542,52 +558,75 @@ const ImageFromAssetFile = ({
                 let props;
                 if (USE_INDEXEDDB) {
                     const begin = Date.now();
-                    const propsFromDb = await get(idInDbForProps);
-                    props = propsFromDb;
+                    // const propsFromDb = await get(idInDbForProps);
+                    // const propsFromDb = await getBatched(idInDbForProps, 200);
+
+                    try {
+                        const propsFromDb = await getBatchedMemoized(idInDbForProps, 200);
+                        if (!delayedLoadTimer) { return; }
+                        props = propsFromDb;
+                    } catch (e) {
+                        // do nothing
+                    }
                     const end = Date.now();
                     window.trackTime_dbReadProps += (end - begin);
                 }
                 if (!props) {
                     const computedDimensions = await getImageDimensionsFromBlob(imageBlob);
+                    if (!delayedLoadTimer) { return; }
                     props = {
                         dimensions: computedDimensions
                     };
+
+                    if (USE_INDEXEDDB) {
+                        const begin = Date.now();
+                        await set(idInDbForProps, props);
+                        if (!delayedLoadTimer) { return; }
+                        const end = Date.now();
+                        window.trackTime_dbWriteProps += (end - begin);
+                    }
                 }
                 // FIXME: "react/prop-types" is getting applied incorrectly here since we set the vatiable name as "props"
                 setDimensions(props.dimensions); // eslint-disable-line react/prop-types
-                if (USE_INDEXEDDB) {
-                    const begin = Date.now();
-                    await set(idInDbForProps, props);
-                    const end = Date.now();
-                    window.trackTime_dbWriteProps += (end - begin);
-                }
 
                 let thumb32;
                 if (USE_INDEXEDDB) {
                     const begin = Date.now();
-                    thumb32 = await get(idInDbForThumb32);
+                    // thumb32 = await get(idInDbForThumb32);
+                    // thumb32 = await getBatched(idInDbForThumb32, 200);
+                    try {
+                        thumb32 = await getBatchedMemoized(idInDbForThumb32, 200);
+                    } catch (e) {
+                        // do nothing
+                    }
+                    if (!delayedLoadTimer) { return; }
                     const end = Date.now();
                     window.trackTime_dbReadThumb32 += (end - begin);
                 }
                 if (!thumb32) {
                     thumb32 = await resizeImageBlob(imageBlob, 32, file.type);
-                }
-                if (USE_INDEXEDDB) {
-                    const begin = Date.now();
-                    const thumb32Blob = thumb32;
-                    await set(idInDbForThumb32, thumb32Blob);
-                    const end = Date.now();
-                    window.trackTime_dbWriteThumb32 += (end - begin);
+                    if (!delayedLoadTimer) { return; }
+
+                    if (USE_INDEXEDDB) {
+                        const begin = Date.now();
+                        const thumb32Blob = thumb32;
+                        await set(idInDbForThumb32, thumb32Blob);
+                        if (!delayedLoadTimer) { return; }
+                        const end = Date.now();
+                        window.trackTime_dbWriteThumb32 += (end - begin);
+                    }
                 }
                 const url = URL.createObjectURL(thumb32);
                 setImageBlob(url);
             // Some delay to allow for the "useEffect cancel" (clearTimeout) to take effect when the user is scrolling very fast
             // }, getRandomIntInclusive(100, 200));
-            }, 150);
+            // }, 150);
+            });
         })();
 
         return () => {
             clearTimeout(delayedLoadTimer);
+            delayedLoadTimer = null;
 
             // URL.revokeObjectURL(imageBlob);
         };
@@ -817,7 +856,8 @@ const ShowImagesWrapper = ({
                     // Adjust UX+performance:
                     //     * Higher value here means faster rendering when scrolling to nearby items (eg: pressing down arrow on keyboard)
                     //     * Higher value here means slower rendering when scrolling to far away items (eg: making huge scroll jump with mouse)
-                    increaseViewportBy={500}
+                    // increaseViewportBy={500}
+                    increaseViewportBy={5000}
 
                     itemContent={(index, assetFile) => {
                         const fileName = assetFile.name;
