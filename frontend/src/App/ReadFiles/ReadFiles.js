@@ -1,6 +1,6 @@
 /* global showDirectoryPicker */
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
 
 import classNames from 'classnames';
@@ -10,10 +10,16 @@ import ky from 'ky';
 
 import { atom, useAtom } from 'jotai';
 
+import Fuse from 'fuse.js';
+
 import pMemoize from 'p-memoize';
 
-import { get, set, clear } from 'idb-keyval';
-import { getBatched } from './idbBatched.js';
+import { clear } from 'idb-keyval';
+
+import {
+    getBatched,
+    setBatched
+} from './idbBatched.js';
 
 import { humanReadableByteSize } from 'helpmate/dist/misc/humanReadableByteSize.js';
 
@@ -36,6 +42,33 @@ import {
 // TODO: FIXME: Various variable names have to be corrected as per their usage (since they were not adjusted properly
 //              in accordance with the recent code refactoring).
 
+const fuseOptions = {
+    // isCaseSensitive: false,
+    // includeScore: false,
+    // shouldSort: true,
+    // includeMatches: false,
+    // findAllMatches: false,
+    // minMatchCharLength: 1,
+    // location: 0,
+    // threshold: 0.6,
+    // distance: 100,
+    // useExtendedSearch: false,
+    // ignoreLocation: false,
+    // ignoreFieldNorm: false,
+    // fieldNormWeight: 1,
+    includeScore: true,
+    keys: [
+        {
+            name: 'name',
+            weight: 1
+        },
+        {
+            name: 'tags',
+            weight: 0.9
+        }
+    ]
+};
+
 // DEV-HELPER
 window.trackTime_dbReadProps = 0;
 window.trackTime_dbReadThumb32 = 0;
@@ -51,7 +84,7 @@ if (CLEAR_INDEXEDDB) {
 }
 
 const cacheMap = new Map();
-window.cacheMap = cacheMap;
+window.cacheMap = cacheMap; // DEV-HELPER
 const getBatchedMemoized = pMemoize(
     getBatched,
     {
@@ -558,10 +591,10 @@ const ImageFromAssetFile = ({
                 let props;
                 if (USE_INDEXEDDB) {
                     const begin = Date.now();
-                    // const propsFromDb = await get(idInDbForProps);
-                    // const propsFromDb = await getBatched(idInDbForProps, 200);
 
                     try {
+                        // Note: pMemoize does not cache the promises which throw an error hence we are using such API
+                        //       for getBatchedMemoized and wrapping it in try-catch
                         const propsFromDb = await getBatchedMemoized(idInDbForProps, 200);
                         if (!delayedLoadTimer) { return; }
                         props = propsFromDb;
@@ -580,7 +613,8 @@ const ImageFromAssetFile = ({
 
                     if (USE_INDEXEDDB) {
                         const begin = Date.now();
-                        await set(idInDbForProps, props);
+                        // await set(idInDbForProps, props); // TODO: FIXME: Handle error for this call
+                        await setBatched(idInDbForProps, props, 100); // TODO: FIXME: Handle error for this call
                         if (!delayedLoadTimer) { return; }
                         const end = Date.now();
                         window.trackTime_dbWriteProps += (end - begin);
@@ -592,8 +626,6 @@ const ImageFromAssetFile = ({
                 let thumb32;
                 if (USE_INDEXEDDB) {
                     const begin = Date.now();
-                    // thumb32 = await get(idInDbForThumb32);
-                    // thumb32 = await getBatched(idInDbForThumb32, 200);
                     try {
                         thumb32 = await getBatchedMemoized(idInDbForThumb32, 200);
                     } catch (e) {
@@ -610,7 +642,8 @@ const ImageFromAssetFile = ({
                     if (USE_INDEXEDDB) {
                         const begin = Date.now();
                         const thumb32Blob = thumb32;
-                        await set(idInDbForThumb32, thumb32Blob);
+                        // await set(idInDbForThumb32, thumb32Blob); // TODO: FIXME: Handle error for this call
+                        await setBatched(idInDbForThumb32, thumb32Blob, 100); // TODO: FIXME: Handle error for this call
                         if (!delayedLoadTimer) { return; }
                         const end = Date.now();
                         window.trackTime_dbWriteThumb32 += (end - begin);
@@ -795,23 +828,48 @@ const sortFnByFieldReverse = (field) => {
     };
 };
 
-const ShowImagesWrapper = ({
+const ShowImagesWrapper = function ({
     handleForFolder,
-    files
-}) => {
+    files,
+    searchQuery,
+    resourcesCount,
+    relevantHandlesCount,
+    relevantFilesTotal
+}) {
     const [sortBy, setSortBy] = useState(null);
 
-    const sortedFiles = structuredClone(files);
+    const clonedFiles = structuredClone(files);
 
-    if (sortedFiles) {
+    let filtered = clonedFiles;
+    if (Array.isArray(clonedFiles) && searchQuery) {
+        const fuse = new Fuse(clonedFiles, fuseOptions);
+        let searchResults = fuse.search(searchQuery);
+        searchResults = searchResults.filter((item) => item.score < 0.25);
+        searchResults.sort((a, b) => {
+            if (a.score < b.score) {
+                return -1;
+            } else if (a.score > b.score) {
+                return 1;
+            } else {
+                return 0;
+            }
+        });
+        searchResults = searchResults.map((item) => item.item);
+
+        filtered = searchResults;
+    }
+
+    if (filtered) {
         if (sortBy && sortBy.field === 'size') {
             if (sortBy.reverse) {
-                sortedFiles.sort(sortFnByFieldReverse(sortBy.field));
+                filtered.sort(sortFnByFieldReverse(sortBy.field));
             } else {
-                sortedFiles.sort(sortFnByField(sortBy.field));
+                filtered.sort(sortFnByField(sortBy.field));
             }
         }
     }
+    const finalList = filtered;
+
     return (
         <div style={{ width: 830, border: '1px solid #ccc', borderRadius: 10, overflow: 'hidden' }}>
             <div className={styles.headerRow}>
@@ -851,13 +909,13 @@ const ShowImagesWrapper = ({
             <div>
                 <Virtuoso
                     style={{ height: '500px' }}
-                    data={sortedFiles}
+                    data={finalList}
 
                     // Adjust UX+performance:
-                    //     * Higher value here means faster rendering when scrolling to nearby items (eg: pressing down arrow on keyboard)
-                    //     * Higher value here means slower rendering when scrolling to far away items (eg: making huge scroll jump with mouse)
-                    // increaseViewportBy={500}
-                    increaseViewportBy={5000}
+                    //     * Higher value here means:
+                    //           * faster rendering when scrolling to nearby items (eg: pressing down arrow on keyboard)
+                    //           * slower rendering when scrolling to far away items (eg: making huge scroll jump with mouse)
+                    increaseViewportBy={500}
 
                     itemContent={(index, assetFile) => {
                         const fileName = assetFile.name;
@@ -870,6 +928,36 @@ const ShowImagesWrapper = ({
                         );
                     }}
                 />
+            </div>
+            <div>
+                <div
+                    style={{
+                        display: 'flex',
+                        height: 34,
+                        padding: '5px 10px',
+                        backgroundColor: '#eee'
+                    }}
+                >
+                    <div style={{ lineHeight: '24px' }}>
+                        Resources: {
+                            resourcesCount === null ? 'Not loaded' : resourcesCount
+                        }
+                    </div>
+                    <div style={{ lineHeight: '24px' }}>
+                        {(() => {
+                            if (relevantHandlesCount === null) {
+                                return null;
+                            } else {
+                                return (
+                                    <span>
+                                        {' ; '}
+                                        Images: {relevantHandlesCount}/{relevantFilesTotal}
+                                    </span>
+                                );
+                            }
+                        })()}
+                    </div>
+                </div>
             </div>
         </div>
     );
@@ -987,10 +1075,15 @@ SideViewForFile.propTypes = {
     handleForFolder: PropTypes.object.isRequired
 };
 
-const ReadFiles = () => {
+const ReadFiles = function () {
+    const [handleForFolder, setHandleForFolder] = useState(null);
+    const [resourcesCount, setResourcesCount] = useState(null);
+    const [relevantHandlesCount, setRelevantFilesCount] = useState(null);
+    const [relevantFilesTotal, setRelevantFilesTotal] = useState(null);
     const [files, setFiles] = useState(null);
 
-    const [handleForFolder, setHandleForFolder] = useState(null);
+    const [searchInput, setSearchInput] = useState('');
+    const [searchQuery, setSearchQuery] = useState(null);
 
     return (
         <div>
@@ -1014,37 +1107,91 @@ const ReadFiles = () => {
                                 return;
                             }
                             setHandleForFolder(dirHandle);
+                            setRelevantFilesCount(null);
+                            setRelevantFilesTotal(null);
+                            setFiles(null);
 
                             // Get handles for all the files
                             const handles = [];
-                            for await (const entry of dirHandle.values()) {
+                            let index = 0;
+                            setResourcesCount(index);
+                            const iterator = dirHandle.values();
+                            while (true) {
+                                const response = await iterator.next();
+                                if (response.done) {
+                                    break;
+                                }
+                                const entry = response.value;
+                                index++;
+                                setResourcesCount(index);
                                 if (
-                                    entry.kind === 'file' &&
-                                    (
-                                        entry.name.endsWith('.jpeg') ||
-                                        entry.name.endsWith('.jpg')  ||
-                                        entry.name.endsWith('.png')
-                                    )
+                                    entry.name.endsWith('.jpeg') ||
+                                    entry.name.endsWith('.jpg')  ||
+                                    entry.name.endsWith('.png')
                                 ) {
                                     handles.push(entry);
                                 }
                             }
 
+                            setRelevantFilesTotal(handles.length);
                             (async () => {
                                 const files = [];
                                 for (const handle of handles) {
                                     const file = await handle.getFile();
                                     files.push(file);
+
+                                    setRelevantFilesCount(files.length);
                                 }
                                 setFiles(files);
                             })();
-                            setFiles(files);
                         }}
                     >
                         Open Folder
                         <span style={{ color: '#999' }}>
                             {' (from disk)'}
                         </span>
+                    </button>
+                </div>
+            </div>
+
+            <div style={{ marginTop: 15 }}>
+                <div style={{ display: 'flex' }}>
+                    <input
+                        type="text"
+                        value={searchInput}
+                        onChange={(e) => {
+                            setSearchInput(e.target.value);
+                        }}
+                        onKeyPress={(e) => {
+                            if (e.key === 'Enter') {
+                                const query = searchInput.trim();
+                                if (query === '') {
+                                    setSearchQuery(null);
+                                    return;
+                                } else {
+                                    setSearchQuery(query);
+                                }
+                            }
+                        }}
+                    />
+
+                    <button
+                        style={{
+                            cursor: 'pointer',
+                            marginLeft: 10
+                        }}
+                        disabled={!handleForFolder}
+                        onClick={async () => {
+                            const query = searchInput.trim();
+                            if (query === '') {
+                                setSearchQuery(null);
+                                return;
+                            } else {
+                                setSearchQuery(query);
+                            }
+                        }}
+                    >
+                        Search
                     </button>
                 </div>
             </div>
@@ -1059,6 +1206,10 @@ const ReadFiles = () => {
                     <ShowImagesWrapper
                         handleForFolder={handleForFolder}
                         files={files}
+                        searchQuery={searchQuery}
+                        resourcesCount={resourcesCount}
+                        relevantHandlesCount={relevantHandlesCount}
+                        relevantFilesTotal={relevantFilesTotal}
                     />
                 </div>
                 <div

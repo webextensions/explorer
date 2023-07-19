@@ -1,6 +1,6 @@
 import {
     getMany,
-    setMany // eslint-disable-line no-unused-vars
+    setMany
 } from 'idb-keyval';
 
 let getRequests = {
@@ -59,7 +59,71 @@ const getBatched = async function (key, batchDuration) {
     return response;
 };
 
-const setBatched = async function (key, value, batchDuration) { // eslint-disable-line no-unused-vars
+
+let setRequests = {
+    pendingRequests: [],
+    timeOfFirstPendingRequest: null
+};
+
+const flushPendingSetRequests = async function () {
+    const pendingRequests = setRequests.pendingRequests;
+    const items = pendingRequests.map(function (request) {
+        return [
+            request.requestId,
+            request.value
+        ];
+    });
+    setRequests = {
+        timeOfFirstPendingRequest: null,
+        pendingRequests: []
+    };
+    let success;
+    try {
+        await setMany(items);
+        success = true;
+    } catch (e) {
+        success = false;
+    }
+
+    for (let i = 0; i < pendingRequests.length; i++) { // eslint-disable-line unicorn/no-for-loop
+        const thisRequest = pendingRequests[i];
+        let err = null;
+        if (!success) {
+            err = new Error('Failed to set');
+        }
+        thisRequest.callback(err);
+    }
+};
+
+const setBatched = async function (key, value, batchDuration) {
+    let promiseResolve,
+        promiseReject;
+    const pendingPromise = new Promise((resolve, reject) => {
+        promiseResolve = resolve;
+        promiseReject = reject;
+    });
+
+    const thisRequest = {
+        requestId: key,
+        value,
+        callback: function (err) {
+            if (err) {
+                promiseReject(err);
+            } else {
+                promiseResolve();
+            }
+        }
+    };
+    setRequests.pendingRequests.push(thisRequest);
+    if (setRequests.timeOfFirstPendingRequest === null) {
+        setRequests.timeOfFirstPendingRequest = Date.now();
+        setTimeout(async function () {
+            await flushPendingSetRequests();
+        }, batchDuration);
+    }
+
+    const response = await pendingPromise;
+    return response;
 };
 
 export {
