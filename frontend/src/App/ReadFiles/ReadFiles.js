@@ -1,6 +1,6 @@
 /* global showDirectoryPicker */
 
-import React, { useEffect, useState } from 'react';
+import React, { Fragment, useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
 
 import classNames from 'classnames';
@@ -23,6 +23,8 @@ import {
 
 import { humanReadableByteSize } from 'helpmate/dist/misc/humanReadableByteSize.js';
 
+import { trackTime } from 'helpmate/dist/misc/trackTime.js';
+
 import uc from '../../utility-classes.css';
 import styles from './ReadFiles.css';
 
@@ -38,6 +40,9 @@ import {
     ERROR_CODE_NOT_FOUND,
     ERROR_CODE_UNKNOWN
 } from './readyStates.js';
+
+const trackTimeAsync = trackTime.async;
+window.trackTimeLog = trackTime.log; // DEV-HELPER
 
 // TODO: FIXME: Various variable names have to be corrected as per their usage (since they were not adjusted properly
 //              in accordance with the recent code refactoring).
@@ -68,12 +73,6 @@ const fuseOptions = {
         }
     ]
 };
-
-// DEV-HELPER
-window.trackTime_dbReadProps = 0;
-window.trackTime_dbReadThumb32 = 0;
-window.trackTime_dbWriteProps = 0;
-window.trackTime_dbWriteThumb32 = 0;
 
 window.count_VirtuosoExecuteSlowOperation = 0;
 
@@ -198,8 +197,10 @@ const createMetadataForImage = async function ({ handleForFolder, imageFile, dim
             name: imageFile.name,
             type: imageFile.type,
             size: imageFile.size,
-            width: dimensions.width,
-            height: dimensions.height,
+            dimensions: {
+                width: dimensions.width,
+                height: dimensions.height
+            },
             lastModified: imageFile.lastModified
         };
         const writable = await metadataFileHandle.createWritable();
@@ -590,19 +591,18 @@ const ImageFromAssetFile = ({
 
                 let props;
                 if (USE_INDEXEDDB) {
-                    const begin = Date.now();
-
                     try {
                         // Note: pMemoize does not cache the promises which throw an error hence we are using such API
                         //       for getBatchedMemoized and wrapping it in try-catch
-                        const propsFromDb = await getBatchedMemoized(idInDbForProps, 200);
+                        const propsFromDb = await trackTimeAsync(
+                            'dbReadProps',
+                            () => getBatchedMemoized(idInDbForProps, 200)
+                        );
                         if (!delayedLoadTimer) { return; }
                         props = propsFromDb;
                     } catch (e) {
                         // do nothing
                     }
-                    const end = Date.now();
-                    window.trackTime_dbReadProps += (end - begin);
                 }
                 if (!props) {
                     const computedDimensions = await getImageDimensionsFromBlob(imageBlob);
@@ -612,12 +612,13 @@ const ImageFromAssetFile = ({
                     };
 
                     if (USE_INDEXEDDB) {
-                        const begin = Date.now();
-                        // await set(idInDbForProps, props); // TODO: FIXME: Handle error for this call
-                        await setBatched(idInDbForProps, props, 100); // TODO: FIXME: Handle error for this call
+                        // TODO: FIXME: Handle error for this call
+                        await trackTimeAsync(
+                            'dbWriteProps',
+                            // () => set(idInDbForProps, props),
+                            () => setBatched(idInDbForProps, props, 100)
+                        );
                         if (!delayedLoadTimer) { return; }
-                        const end = Date.now();
-                        window.trackTime_dbWriteProps += (end - begin);
                     }
                 }
                 // FIXME: "react/prop-types" is getting applied incorrectly here since we set the vatiable name as "props"
@@ -625,28 +626,30 @@ const ImageFromAssetFile = ({
 
                 let thumb32;
                 if (USE_INDEXEDDB) {
-                    const begin = Date.now();
                     try {
-                        thumb32 = await getBatchedMemoized(idInDbForThumb32, 200);
+                        thumb32 = await trackTimeAsync(
+                            'dbReadThumb32',
+                            () => getBatchedMemoized(idInDbForThumb32, 200)
+                        );
                     } catch (e) {
                         // do nothing
                     }
                     if (!delayedLoadTimer) { return; }
-                    const end = Date.now();
-                    window.trackTime_dbReadThumb32 += (end - begin);
                 }
                 if (!thumb32) {
                     thumb32 = await resizeImageBlob(imageBlob, 32, file.type);
                     if (!delayedLoadTimer) { return; }
 
                     if (USE_INDEXEDDB) {
-                        const begin = Date.now();
                         const thumb32Blob = thumb32;
-                        // await set(idInDbForThumb32, thumb32Blob); // TODO: FIXME: Handle error for this call
-                        await setBatched(idInDbForThumb32, thumb32Blob, 100); // TODO: FIXME: Handle error for this call
+
+                        await trackTimeAsync(
+                            'dbWriteThumb32',
+                            // () => set(idInDbForThumb32, thumb32Blob), // TODO: FIXME: Handle error for this call
+                            () => setBatched(idInDbForThumb32, thumb32Blob, 100) // TODO: FIXME: Handle error for this call
+                        );
+
                         if (!delayedLoadTimer) { return; }
-                        const end = Date.now();
-                        window.trackTime_dbWriteThumb32 += (end - begin);
                     }
                 }
                 const url = URL.createObjectURL(thumb32);
@@ -1075,12 +1078,249 @@ SideViewForFile.propTypes = {
     handleForFolder: PropTypes.object.isRequired
 };
 
+const buildIndex = async function ({
+    handleForFolder,
+    statusUpdateCallback
+}) {
+    try {
+
+        /*
+        // Go through all the files in the folder and find all the files.
+        Example input:
+            * abc.jpg
+            * abc.jpg.metadata.json
+            * def.exe
+            * ghi.png
+            * ghi.png.metadata.json
+            * jkl.doc
+            * mno.jpg
+            * pqr.txt
+            * stu.xlsx.metadata.json
+
+        // Now, split them into two sets. One set contains the files ending with the extension ".metadata.json". The other
+        // set contains the files that don't end with the extension ".metadata.json".
+        Split into two sets:
+            Set 1: Set without ".metadata.json" extension:
+                * abc.jpg
+                * def.exe
+                * ghi.png
+                * jkl.doc
+                * mno.jpg
+                * pqr.txt
+            Set 2: Set with ".metadata.json" extension:
+                * abc.jpg.metadata.json
+                * ghi.png.metadata.json
+                * stu.xlsx.metadata.json
+
+        // Now from the Set 2 (the one with ".metadata.json" extension), create another set with the same files but without
+        // the extension ".metadata.json". This will be the set of files for which we have metadata. We call it Set 3.
+        Set 3: Set created from the list of files with ".metadata.json" extension, but without the extension ".metadata.json"
+            * abc.jpg
+            * ghi.png
+            * stu.xlsx
+
+        // Now from the Set 1 (the one without ".metadata.json" extension), remove all the entries that are in the Set 3.
+        // This will be the set of files for which we don't have the corresponding ".metadata.json" file. We call it Set 4.
+        Set 4: Set created from the list of files without ".metadata.json" extension, but not in the Set 3.
+            * def.exe
+            * jkl.doc
+            * mno.jpg
+            * pqr.txt
+
+        Now, for each file in the Set 4, create a new file with the same name but with the extension ".metadata.json".
+        */
+
+        const iterator = await handleForFolder.values();
+
+        const listFileHandles = [];
+        for await (const handleForFile of iterator) {
+            listFileHandles.push(handleForFile);
+        }
+
+        const handlesForActualFiles = listFileHandles.filter(function (item) {
+            return item.kind === 'file';
+        });
+
+        const handlesForActualMetadataFiles = handlesForActualFiles.filter(function (file) {
+            return file.name.endsWith('.metadata.json');
+        });
+
+        const namesOfFilesWithMetadataWithoutMetadataExtension = handlesForActualMetadataFiles.map(function (file) {
+            return file.name.replace(/\.metadata\.json$/, '');
+        });
+
+        const setNamesOfFilesWithMetadataWithoutMetadataExtension = new Set(namesOfFilesWithMetadataWithoutMetadataExtension);
+
+        const handlesForActualNonMetadataFiles = handlesForActualFiles.filter(function (file) {
+            if (file.name.endsWith('.metadata.json')) {
+                return false;
+            } else {
+                return true;
+            }
+        });
+
+        const handlesForFilesForWhichMetadataFileNeedsToBeCreated = handlesForActualNonMetadataFiles.filter(function (file) {
+            if (setNamesOfFilesWithMetadataWithoutMetadataExtension.has(file.name)) {
+                return false;
+            } else {
+                return true;
+            }
+        });
+
+        let filesCreated = 0;
+        const filesToBeCreated = handlesForFilesForWhichMetadataFileNeedsToBeCreated.length;
+        // Now create the ".metadata.json" files for the files for which they don't exist.
+        for (const handleForFile of handlesForFilesForWhichMetadataFileNeedsToBeCreated) {
+            const handleForMetadataFile = await trackTimeAsync(
+                'buildIndex_getFileHandle',
+                () => handleForFolder.getFileHandle(handleForFile.name + '.metadata.json', { create: true })
+            );
+
+            const file = await trackTimeAsync(
+                'buildIndex_getFile',
+                () => handleForFile.getFile()
+            );
+
+            const metadata = {
+                name: file.name,
+                type: file.type,
+                size: file.size,
+                lastModified: file.lastModified
+            };
+
+            if (file.type === 'image/jpeg' || file.type === 'image/png') {
+                const imageBlob = new Blob([file], { type: file.type });
+                const dimensions = await getImageDimensionsFromBlob(imageBlob);
+                metadata.dimensions = dimensions;
+            }
+
+            const writableStream = await trackTimeAsync(
+                'buildIndex_createWritable',
+                () => handleForMetadataFile.createWritable()
+            );
+
+            await trackTimeAsync(
+                'buildIndex_write',
+                () => writableStream.write(JSON.stringify(metadata, null, 4))
+            );
+
+            setTimeout(async function () {
+                await trackTimeAsync(
+                    'buildIndex_closeStream',
+                    () => writableStream.close()
+                );
+
+                filesCreated++;
+                statusUpdateCallback({
+                    filesCreated,
+                    filesToBeCreated
+                });
+            });
+        }
+        return [null];
+    } catch (e) {
+        return [e];
+    }
+
+};
+
+const BuildIndex = function ({ handleForFolder }) {
+    const [progressStatus, setProgressStatus] = useState(null);
+    return (
+        <div style={{ display: 'flex' }}>
+            <button
+                type="button"
+                onClick={async () => {
+                    setProgressStatus(null);
+
+                    const [err] = await buildIndex({
+                        handleForFolder,
+                        statusUpdateCallback: function (status) {
+                            const { filesCreated, filesToBeCreated } = status;
+                            setProgressStatus({
+                                filesCreated,
+                                filesToBeCreated
+                            });
+                        }
+                    });
+                }}
+            >
+                Build index
+            </button>
+            {
+                progressStatus &&
+                <Fragment>
+                    <div style={{ marginLeft: 10, lineHeight: '20px' }}>
+                        {progressStatus.filesCreated} / {progressStatus.filesToBeCreated}
+                    </div>
+                    <div style={{ marginLeft: 5, lineHeight: '20px' }}>
+                        ({
+                            parseInt(
+                                1000 *
+                                (progressStatus.filesCreated / progressStatus.filesToBeCreated)
+                            ) / 10
+                        }%)
+                    </div>
+                </Fragment>
+            }
+        </div>
+    );
+};
+
+const AdvancedSearchOptions = function ({ handleForFolder }) {
+    const [advancedSearchEnabled, setAdvancedSearch] = useState(false);
+
+    const checkboxEnabled = !!handleForFolder;
+    return (
+        <div>
+            <div>
+                <label style={{ display: 'flex' }}>
+                    <div>
+                        <input
+                            type="checkbox"
+                            disabled={!checkboxEnabled}
+                            checked={advancedSearchEnabled}
+                            style={{ marginLeft: 0 }}
+                            onChange={function (event) {
+                                setAdvancedSearch(event.target.checked);
+                            }}
+                        />
+                    </div>
+                    <div
+                        style={{
+                            lineHeight: '20px',
+                            marginLeft: 5,
+                            opacity: checkboxEnabled ? 1 : 0.5
+                        }}
+                    >
+                        Advanced Search
+                    </div>
+                </label>
+            </div>
+            {
+                advancedSearchEnabled &&
+                <div style={{ marginLeft: 20, marginTop: 2 }}>
+                    <div>
+                        <div>
+                            <BuildIndex
+                                handleForFolder={handleForFolder}
+                            />
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    );
+};
+
 const ReadFiles = function () {
     const [handleForFolder, setHandleForFolder] = useState(null);
     const [resourcesCount, setResourcesCount] = useState(null);
     const [relevantHandlesCount, setRelevantFilesCount] = useState(null);
     const [relevantFilesTotal, setRelevantFilesTotal] = useState(null);
     const [files, setFiles] = useState(null);
+
+    const [selectedFileHandle, setSelectedFileHandle] = useAtom(selectedFileHandleAtom);
 
     const [searchInput, setSearchInput] = useState('');
     const [searchQuery, setSearchQuery] = useState(null);
@@ -1110,6 +1350,7 @@ const ReadFiles = function () {
                             setRelevantFilesCount(null);
                             setRelevantFilesTotal(null);
                             setFiles(null);
+                            setSelectedFileHandle(null);
 
                             // Get handles for all the files
                             const handles = [];
@@ -1194,6 +1435,11 @@ const ReadFiles = function () {
                         Search
                     </button>
                 </div>
+            </div>
+            <div style={{ marginTop: 5 }}>
+                <AdvancedSearchOptions
+                    handleForFolder={handleForFolder}
+                />
             </div>
 
             <div
