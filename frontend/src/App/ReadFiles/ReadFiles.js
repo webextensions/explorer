@@ -93,6 +93,8 @@ const getBatchedMemoized = pMemoize(
 
 const selectedFileHandleAtom = atom(null);
 
+const advancedSearchEnabledAtom = atom(false);
+
 const convertLocalTimeInIsoLikeFormat = (timestamp, options = {}) => {
     if (typeof timestamp === 'number') {
         let localTime = (new Date(timestamp - (new Date()).getTimezoneOffset() * 60 * 1000)).toISOString().substr(0, 19).replace('T', ' ');
@@ -844,9 +846,9 @@ const ShowImagesWrapper = function ({
     const clonedFiles = structuredClone(files);
 
     let filtered = clonedFiles;
-    if (Array.isArray(clonedFiles) && searchQuery) {
+    if (Array.isArray(clonedFiles) && searchQuery.query) {
         const fuse = new Fuse(clonedFiles, fuseOptions);
-        let searchResults = fuse.search(searchQuery);
+        let searchResults = fuse.search(searchQuery.query);
         searchResults = searchResults.filter((item) => item.score < 0.25);
         searchResults.sort((a, b) => {
             if (a.score < b.score) {
@@ -1268,7 +1270,7 @@ const BuildIndex = function ({ handleForFolder }) {
 };
 
 const AdvancedSearchOptions = function ({ handleForFolder }) {
-    const [advancedSearchEnabled, setAdvancedSearch] = useState(false);
+    const [advancedSearchEnabled, setAdvancedSearch] = useAtom(advancedSearchEnabledAtom);
 
     const checkboxEnabled = !!handleForFolder;
     return (
@@ -1323,7 +1325,26 @@ const ReadFiles = function () {
     const [selectedFileHandle, setSelectedFileHandle] = useAtom(selectedFileHandleAtom);
 
     const [searchInput, setSearchInput] = useState('');
-    const [searchQuery, setSearchQuery] = useState(null);
+    const [searchQuery, setSearchQuery] = useState({
+        mode: 'normal',
+        query: null
+    });
+
+    const [advancedSearchEnabled, setAdvancedSearch] = useAtom(advancedSearchEnabledAtom);
+
+    const setQueryWithMode = function () {
+        const mode = advancedSearchEnabled ? 'advanced' : 'normal';
+
+        let query = searchInput.trim();
+        if (query === '') {
+            query = null;
+        }
+
+        setSearchQuery({
+            mode,
+            query
+        });
+    };
 
     return (
         <div>
@@ -1405,13 +1426,7 @@ const ReadFiles = function () {
                         }}
                         onKeyPress={(e) => {
                             if (e.key === 'Enter') {
-                                const query = searchInput.trim();
-                                if (query === '') {
-                                    setSearchQuery(null);
-                                    return;
-                                } else {
-                                    setSearchQuery(query);
-                                }
+                                setQueryWithMode();
                             }
                         }}
                     />
@@ -1423,13 +1438,7 @@ const ReadFiles = function () {
                         }}
                         disabled={!handleForFolder}
                         onClick={async () => {
-                            const query = searchInput.trim();
-                            if (query === '') {
-                                setSearchQuery(null);
-                                return;
-                            } else {
-                                setSearchQuery(query);
-                            }
+                            setQueryWithMode();
                         }}
                     >
                         Search
