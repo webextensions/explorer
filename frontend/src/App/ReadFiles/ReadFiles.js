@@ -64,11 +64,11 @@ const fuseOptions = {
     includeScore: true,
     keys: [
         {
-            name: 'name',
+            name: 'file.name',
             weight: 1
         },
         {
-            name: 'tags',
+            name: 'details.tags',
             weight: 0.9
         }
     ]
@@ -810,24 +810,39 @@ ImageFromAssetFile.propTypes = {
     handleForFolder: PropTypes.object.isRequired
 };
 
-const sortFnByField = (field) => {
-    return (a, b) => {
-        if (a[field] < b[field]) {
-            return -1;
-        } else if (a[field] > b[field]) {
-            return 1;
+const getObjectProperty = function (obj, propertyPath) {
+    // Extract the nested property value from the object
+    const properties = propertyPath.split('.');
+    let value = obj;
+    for (const property of properties) {
+        if (value[property] !== undefined) {
+            value = value[property];
         } else {
-            return 0;
+            // Handle cases where the nested property doesn't exist in the object
+            return undefined;
         }
-    };
+    }
+    return value;
 };
-const sortFnByFieldReverse = (field) => {
-    return (a, b) => {
-        if (a[field] < b[field]) {
-            return 1;
-        } else if (a[field] > b[field]) {
-            return -1;
+const sortFnByPropertyPath = function (propertyPath, options = {}) {
+    const order = options.order || 'asc';
+
+    return function (a, b) {
+        // Extract the nested property value from both objects
+        const propA = getObjectProperty(a, propertyPath);
+        const propB = getObjectProperty(b, propertyPath);
+
+        if (order === 'desc') {
+            if (propA === undefined || propA === null) return 1;
+            if (propB === undefined || propA === null) return -1;
+            if (propA > propB) return -1;
+            if (propA < propB) return 1;
+            return 0;
         } else {
+            if (propA === undefined || propA === null) return -1;
+            if (propB === undefined || propA === null) return 1;
+            if (propA < propB) return -1;
+            if (propA > propB) return 1;
             return 0;
         }
     };
@@ -835,7 +850,7 @@ const sortFnByFieldReverse = (field) => {
 
 const ShowImagesWrapper = function ({
     handleForFolder,
-    files,
+    filesAndDetails,
     searchQuery,
     resourcesCount,
     relevantHandlesCount,
@@ -843,11 +858,11 @@ const ShowImagesWrapper = function ({
 }) {
     const [sortBy, setSortBy] = useState(null);
 
-    const clonedFiles = structuredClone(files);
+    const clonedFilesAndDetails = structuredClone(filesAndDetails);
 
-    let filtered = clonedFiles;
-    if (Array.isArray(clonedFiles) && searchQuery.query) {
-        const fuse = new Fuse(clonedFiles, fuseOptions);
+    let filtered = clonedFilesAndDetails;
+    if (Array.isArray(clonedFilesAndDetails) && searchQuery.query) {
+        const fuse = new Fuse(clonedFilesAndDetails, fuseOptions);
         let searchResults = fuse.search(searchQuery.query);
         searchResults = searchResults.filter((item) => item.score < 0.25);
         searchResults.sort((a, b) => {
@@ -866,10 +881,11 @@ const ShowImagesWrapper = function ({
 
     if (filtered) {
         if (sortBy && sortBy.field === 'size') {
+            const propertyPath = 'file.size';
             if (sortBy.reverse) {
-                filtered.sort(sortFnByFieldReverse(sortBy.field));
+                filtered.sort(sortFnByPropertyPath(propertyPath, { order: 'desc' }));
             } else {
-                filtered.sort(sortFnByField(sortBy.field));
+                filtered.sort(sortFnByPropertyPath(propertyPath));
             }
         }
     }
@@ -922,12 +938,14 @@ const ShowImagesWrapper = function ({
                     //           * slower rendering when scrolling to far away items (eg: making huge scroll jump with mouse)
                     increaseViewportBy={500}
 
-                    itemContent={(index, assetFile) => {
-                        const fileName = assetFile.name;
+                    itemContent={(index, fileAndDetails) => {
+                        const file = fileAndDetails.file;
+                        const fileName = file.name;
+                        const details = fileAndDetails.details;
                         return (
                             <ImageFromAssetFile
                                 key={fileName}
-                                assetFile={assetFile}
+                                assetFile={file}
                                 handleForFolder={handleForFolder}
                             />
                         );
@@ -1320,7 +1338,7 @@ const ReadFiles = function () {
     const [resourcesCount, setResourcesCount] = useState(null);
     const [relevantHandlesCount, setRelevantFilesCount] = useState(null);
     const [relevantFilesTotal, setRelevantFilesTotal] = useState(null);
-    const [files, setFiles] = useState(null);
+    const [filesAndDetails, setFilesAndDetails] = useState(null);
 
     const [selectedFileHandle, setSelectedFileHandle] = useAtom(selectedFileHandleAtom);
 
@@ -1370,7 +1388,7 @@ const ReadFiles = function () {
                             setHandleForFolder(dirHandle);
                             setRelevantFilesCount(null);
                             setRelevantFilesTotal(null);
-                            setFiles(null);
+                            setFilesAndDetails(null);
                             setSelectedFileHandle(null);
 
                             // Get handles for all the files
@@ -1397,14 +1415,17 @@ const ReadFiles = function () {
 
                             setRelevantFilesTotal(handles.length);
                             (async () => {
-                                const files = [];
+                                const filesAndDetails = [];
                                 for (const handle of handles) {
                                     const file = await handle.getFile();
-                                    files.push(file);
+                                    filesAndDetails.push({
+                                        file,
+                                        details: {}
+                                    });
 
-                                    setRelevantFilesCount(files.length);
+                                    setRelevantFilesCount(filesAndDetails.length);
                                 }
-                                setFiles(files);
+                                setFilesAndDetails(filesAndDetails);
                             })();
                         }}
                     >
@@ -1460,7 +1481,7 @@ const ReadFiles = function () {
                 <div>
                     <ShowImagesWrapper
                         handleForFolder={handleForFolder}
-                        files={files}
+                        filesAndDetails={filesAndDetails}
                         searchQuery={searchQuery}
                         resourcesCount={resourcesCount}
                         relevantHandlesCount={relevantHandlesCount}
