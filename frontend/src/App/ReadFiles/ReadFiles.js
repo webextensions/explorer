@@ -858,6 +858,8 @@ const ShowImagesWrapper = function ({
 }) {
     const [sortBy, setSortBy] = useState(null);
 
+    const [advancedSearchEnabled, setAdvancedSearch] = useAtom(advancedSearchEnabledAtom);
+
     const clonedFilesAndDetails = useMemo(() => {
         return structuredClone(filesAndDetails);
     }, [filesAndDetails]);
@@ -866,9 +868,13 @@ const ShowImagesWrapper = function ({
     const sortBy_Order = sortBy && sortBy.order;
 
     const finalList = useMemo(() => {
-        let filtered = clonedFilesAndDetails;
-        if (Array.isArray(clonedFilesAndDetails) && searchQuery.query) {
-            const fuse = new Fuse(clonedFilesAndDetails, fuseOptions);
+        let filtered = clonedFilesAndDetails.filesAndDetails;
+        if (
+            clonedFilesAndDetails &&
+            Array.isArray(clonedFilesAndDetails.filesAndDetails) &&
+            searchQuery.query
+        ) {
+            const fuse = new Fuse(clonedFilesAndDetails.filesAndDetails, fuseOptions);
             let searchResults = fuse.search(searchQuery.query);
             searchResults = searchResults.filter((item) => item.score < 0.25);
             searchResults.sort((a, b) => {
@@ -888,12 +894,18 @@ const ShowImagesWrapper = function ({
         if (filtered) {
             if (sortBy && sortBy.field === 'size') {
                 const propertyPath = 'file.size';
-                filtered.sort(sortFnByPropertyPath(propertyPath, { order: sortBy.order }));
+                filtered.fileAndDetails.sort(sortFnByPropertyPath(propertyPath, { order: sortBy.order }));
             }
         }
         const finalList = filtered;
         return finalList;
-    }, [clonedFilesAndDetails, searchQuery.query, sortBy_Field, sortBy_Order]);
+    }, [
+        clonedFilesAndDetails,
+        searchQuery.query,
+        sortBy_Field,
+        sortBy_Order,
+        advancedSearchEnabled
+    ]);
 
     return (
         <div style={{ width: 830, border: '1px solid #ccc', borderRadius: 10, overflow: 'hidden' }}>
@@ -1342,7 +1354,11 @@ const ReadFiles = function () {
     const [resourcesCount, setResourcesCount] = useState(null);
     const [relevantHandlesCount, setRelevantFilesCount] = useState(null);
     const [relevantFilesTotal, setRelevantFilesTotal] = useState(null);
-    const [filesAndDetails, setFilesAndDetails] = useState(null);
+    const [filesAndDetails, setFilesAndDetails] = useState({
+        readNames: false,
+        readMetadataFile: false,
+        filesAndDetails: null
+    });
 
     const [selectedFileHandle, setSelectedFileHandle] = useAtom(selectedFileHandleAtom);
 
@@ -1392,7 +1408,11 @@ const ReadFiles = function () {
                             setHandleForFolder(dirHandle);
                             setRelevantFilesCount(null);
                             setRelevantFilesTotal(null);
-                            setFilesAndDetails(null);
+                            setFilesAndDetails({
+                                readNames: false,
+                                readMetadataFile: false,
+                                filesAndDetails: null
+                            });
                             setSelectedFileHandle(null);
 
                             // Get handles for all the files
@@ -1429,7 +1449,11 @@ const ReadFiles = function () {
 
                                     setRelevantFilesCount(filesAndDetails.length);
                                 }
-                                setFilesAndDetails(filesAndDetails);
+                                setFilesAndDetails({
+                                    readNames: true,
+                                    readMetadataFile: false,
+                                    filesAndDetails
+                                });
                             })();
                         }}
                     >
