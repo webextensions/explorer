@@ -1,6 +1,6 @@
 /* global showDirectoryPicker */
 
-import React, { Fragment, useEffect, useState } from 'react';
+import React, { Fragment, useEffect, useMemo, useState } from 'react';
 import PropTypes from 'prop-types';
 
 import classNames from 'classnames';
@@ -858,38 +858,42 @@ const ShowImagesWrapper = function ({
 }) {
     const [sortBy, setSortBy] = useState(null);
 
-    const clonedFilesAndDetails = structuredClone(filesAndDetails);
+    const clonedFilesAndDetails = useMemo(() => {
+        return structuredClone(filesAndDetails);
+    }, [filesAndDetails]);
 
-    let filtered = clonedFilesAndDetails;
-    if (Array.isArray(clonedFilesAndDetails) && searchQuery.query) {
-        const fuse = new Fuse(clonedFilesAndDetails, fuseOptions);
-        let searchResults = fuse.search(searchQuery.query);
-        searchResults = searchResults.filter((item) => item.score < 0.25);
-        searchResults.sort((a, b) => {
-            if (a.score < b.score) {
-                return -1;
-            } else if (a.score > b.score) {
-                return 1;
-            } else {
-                return 0;
-            }
-        });
-        searchResults = searchResults.map((item) => item.item);
+    const sortBy_Field = sortBy && sortBy.field;
+    const sortBy_Order = sortBy && sortBy.order;
 
-        filtered = searchResults;
-    }
+    const finalList = useMemo(() => {
+        let filtered = clonedFilesAndDetails;
+        if (Array.isArray(clonedFilesAndDetails) && searchQuery.query) {
+            const fuse = new Fuse(clonedFilesAndDetails, fuseOptions);
+            let searchResults = fuse.search(searchQuery.query);
+            searchResults = searchResults.filter((item) => item.score < 0.25);
+            searchResults.sort((a, b) => {
+                if (a.score < b.score) {
+                    return -1;
+                } else if (a.score > b.score) {
+                    return 1;
+                } else {
+                    return 0;
+                }
+            });
+            searchResults = searchResults.map((item) => item.item);
 
-    if (filtered) {
-        if (sortBy && sortBy.field === 'size') {
-            const propertyPath = 'file.size';
-            if (sortBy.reverse) {
-                filtered.sort(sortFnByPropertyPath(propertyPath, { order: 'desc' }));
-            } else {
-                filtered.sort(sortFnByPropertyPath(propertyPath));
+            filtered = searchResults;
+        }
+
+        if (filtered) {
+            if (sortBy && sortBy.field === 'size') {
+                const propertyPath = 'file.size';
+                filtered.sort(sortFnByPropertyPath(propertyPath, { order: sortBy.order }));
             }
         }
-    }
-    const finalList = filtered;
+        const finalList = filtered;
+        return finalList;
+    }, [clonedFilesAndDetails, searchQuery.query, sortBy_Field, sortBy_Order]);
 
     return (
         <div style={{ width: 830, border: '1px solid #ccc', borderRadius: 10, overflow: 'hidden' }}>
@@ -907,11 +911,11 @@ const ShowImagesWrapper = function ({
                     className={classNames(styles.cell, styles.fileSize)}
                     onClick={() => {
                         if (sortBy && sortBy.field === 'size' && !sortBy.reverse) {
-                            setSortBy({ field: 'size', reverse: true });
+                            setSortBy({ field: 'size', order: 'desc' });
                         } else if (sortBy && sortBy.field === 'size' && sortBy.reverse) {
                             setSortBy(null);
                         } else {
-                            setSortBy({ field: 'size', reverse: false });
+                            setSortBy({ field: 'size', order: 'asc' });
                         }
                     }}
                 >
