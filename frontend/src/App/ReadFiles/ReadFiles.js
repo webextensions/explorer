@@ -12,6 +12,8 @@ import { atom, useAtom } from 'jotai';
 
 import Fuse from 'fuse.js';
 
+import { getImageDimensionsFromBlob } from '../utils/getImageDimensionsFromBlob.js';
+
 import pMemoize from 'p-memoize';
 
 import { clear } from 'idb-keyval';
@@ -24,6 +26,8 @@ import {
 import { humanReadableByteSize } from 'helpmate/dist/misc/humanReadableByteSize.js';
 
 import { trackTime } from 'helpmate/dist/misc/trackTime.js';
+
+import { BuildIndex } from './BuildIndex/BuildIndex.js';
 
 import uc from '../../utility-classes.css';
 import styles from './ReadFiles.css';
@@ -62,6 +66,16 @@ const fuseOptions = {
     // ignoreFieldNorm: false,
     // fieldNormWeight: 1,
     includeScore: true,
+    keys: [
+        {
+            name: 'file.name',
+            weight: 1
+        }
+    ]
+};
+
+const fuseOptionsAdvanced = {
+    ...fuseOptions,
     keys: [
         {
             name: 'file.name',
@@ -109,20 +123,6 @@ const convertLocalTimeInIsoLikeFormat = (timestamp, options = {}) => {
     } else {
         return 'NA';
     }
-};
-
-const getImageDimensionsFromBlob = async function (imageBlob) {
-    const imageBitmap = await createImageBitmap(imageBlob);
-
-    const {
-        width,
-        height
-    } = imageBitmap;
-
-    return {
-        width,
-        height
-    };
 };
 
 const resizeImageBlob = async function (imageBlob, maxSize, mimeType) {
@@ -850,7 +850,7 @@ const sortFnByPropertyPath = function (propertyPath, options = {}) {
 
 const ShowImagesWrapper = function ({
     handleForFolder,
-    filesAndDetails,
+    filesAndIndexInfo,
     searchQuery,
     resourcesCount,
     relevantHandlesCount,
@@ -858,23 +858,31 @@ const ShowImagesWrapper = function ({
 }) {
     const [sortBy, setSortBy] = useState(null);
 
-    const [advancedSearchEnabled, setAdvancedSearch] = useAtom(advancedSearchEnabledAtom);
+    const [advancedSearchEnabled, setAdvancedSearchEnabled] = useAtom(advancedSearchEnabledAtom);
 
-    const clonedFilesAndDetails = useMemo(() => {
-        return structuredClone(filesAndDetails);
-    }, [filesAndDetails]);
+    const clonedFilesAndIndexInfo = useMemo(() => {
+        return structuredClone(filesAndIndexInfo);
+    }, [
+        filesAndIndexInfo,
+        filesAndIndexInfo.readNames,
+        filesAndIndexInfo.readMetadataFiles
+    ]);
 
     const sortBy_Field = sortBy && sortBy.field;
     const sortBy_Order = sortBy && sortBy.order;
 
     const finalList = useMemo(() => {
-        let filtered = clonedFilesAndDetails.filesAndDetails;
+        let filtered = clonedFilesAndIndexInfo.filesAndDetails;
         if (
-            clonedFilesAndDetails &&
-            Array.isArray(clonedFilesAndDetails.filesAndDetails) &&
+            clonedFilesAndIndexInfo &&
+            Array.isArray(clonedFilesAndIndexInfo.filesAndDetails) &&
             searchQuery.query
         ) {
-            const fuse = new Fuse(clonedFilesAndDetails.filesAndDetails, fuseOptions);
+            let fuseOptionsToUse = fuseOptions;
+            if (advancedSearchEnabled) {
+                fuseOptionsToUse = fuseOptionsAdvanced;
+            }
+            const fuse = new Fuse(clonedFilesAndIndexInfo.filesAndDetails, fuseOptionsToUse);
             let searchResults = fuse.search(searchQuery.query);
             searchResults = searchResults.filter((item) => item.score < 0.25);
             searchResults.sort((a, b) => {
@@ -900,7 +908,7 @@ const ShowImagesWrapper = function ({
         const finalList = filtered;
         return finalList;
     }, [
-        clonedFilesAndDetails,
+        clonedFilesAndIndexInfo,
         searchQuery.query,
         sortBy_Field,
         sortBy_Order,
@@ -1114,197 +1122,59 @@ SideViewForFile.propTypes = {
     handleForFolder: PropTypes.object.isRequired
 };
 
-const buildIndex = async function ({
-    handleForFolder,
-    statusUpdateCallback
-}) {
-    try {
+const loadMetadataFiles = async function (filesAndIndexInfo) {
+    const { handleForFolder } = filesAndIndexInfo;
+    const iterator = await handleForFolder.values();
 
-        /*
-        // Go through all the files in the folder and find all the files.
-        Example input:
-            * abc.jpg
-            * abc.jpg.metadata.json
-            * def.exe
-            * ghi.png
-            * ghi.png.metadata.json
-            * jkl.doc
-            * mno.jpg
-            * pqr.txt
-            * stu.xlsx.metadata.json
-
-        // Now, split them into two sets. One set contains the files ending with the extension ".metadata.json". The other
-        // set contains the files that don't end with the extension ".metadata.json".
-        Split into two sets:
-            Set 1: Set without ".metadata.json" extension:
-                * abc.jpg
-                * def.exe
-                * ghi.png
-                * jkl.doc
-                * mno.jpg
-                * pqr.txt
-            Set 2: Set with ".metadata.json" extension:
-                * abc.jpg.metadata.json
-                * ghi.png.metadata.json
-                * stu.xlsx.metadata.json
-
-        // Now from the Set 2 (the one with ".metadata.json" extension), create another set with the same files but without
-        // the extension ".metadata.json". This will be the set of files for which we have metadata. We call it Set 3.
-        Set 3: Set created from the list of files with ".metadata.json" extension, but without the extension ".metadata.json"
-            * abc.jpg
-            * ghi.png
-            * stu.xlsx
-
-        // Now from the Set 1 (the one without ".metadata.json" extension), remove all the entries that are in the Set 3.
-        // This will be the set of files for which we don't have the corresponding ".metadata.json" file. We call it Set 4.
-        Set 4: Set created from the list of files without ".metadata.json" extension, but not in the Set 3.
-            * def.exe
-            * jkl.doc
-            * mno.jpg
-            * pqr.txt
-
-        Now, for each file in the Set 4, create a new file with the same name but with the extension ".metadata.json".
-        */
-
-        const iterator = await handleForFolder.values();
-
-        const listFileHandles = [];
-        for await (const handleForFile of iterator) {
-            listFileHandles.push(handleForFile);
+    const fileHandlesByFileName = {};
+    while (true) {
+        const { done, value } = await iterator.next();
+        if (done) {
+            break;
         }
 
-        const handlesForActualFiles = listFileHandles.filter(function (item) {
-            return item.kind === 'file';
-        });
-
-        const handlesForActualMetadataFiles = handlesForActualFiles.filter(function (file) {
-            return file.name.endsWith('.metadata.json');
-        });
-
-        const namesOfFilesWithMetadataWithoutMetadataExtension = handlesForActualMetadataFiles.map(function (file) {
-            return file.name.replace(/\.metadata\.json$/, '');
-        });
-
-        const setNamesOfFilesWithMetadataWithoutMetadataExtension = new Set(namesOfFilesWithMetadataWithoutMetadataExtension);
-
-        const handlesForActualNonMetadataFiles = handlesForActualFiles.filter(function (file) {
-            if (file.name.endsWith('.metadata.json')) {
-                return false;
-            } else {
-                return true;
-            }
-        });
-
-        const handlesForFilesForWhichMetadataFileNeedsToBeCreated = handlesForActualNonMetadataFiles.filter(function (file) {
-            if (setNamesOfFilesWithMetadataWithoutMetadataExtension.has(file.name)) {
-                return false;
-            } else {
-                return true;
-            }
-        });
-
-        let filesCreated = 0;
-        const filesToBeCreated = handlesForFilesForWhichMetadataFileNeedsToBeCreated.length;
-        // Now create the ".metadata.json" files for the files for which they don't exist.
-        for (const handleForFile of handlesForFilesForWhichMetadataFileNeedsToBeCreated) {
-            const handleForMetadataFile = await trackTimeAsync(
-                'buildIndex_getFileHandle',
-                () => handleForFolder.getFileHandle(handleForFile.name + '.metadata.json', { create: true })
-            );
-
-            const file = await trackTimeAsync(
-                'buildIndex_getFile',
-                () => handleForFile.getFile()
-            );
-
-            const metadata = {
-                name: file.name,
-                type: file.type,
-                size: file.size,
-                lastModified: file.lastModified
-            };
-
-            if (file.type === 'image/jpeg' || file.type === 'image/png') {
-                const imageBlob = new Blob([file], { type: file.type });
-                const dimensions = await getImageDimensionsFromBlob(imageBlob);
-                metadata.dimensions = dimensions;
-            }
-
-            const writableStream = await trackTimeAsync(
-                'buildIndex_createWritable',
-                () => handleForMetadataFile.createWritable()
-            );
-
-            await trackTimeAsync(
-                'buildIndex_write',
-                () => writableStream.write(JSON.stringify(metadata, null, 4))
-            );
-
-            setTimeout(async function () {
-                await trackTimeAsync(
-                    'buildIndex_closeStream',
-                    () => writableStream.close()
-                );
-
-                filesCreated++;
-                statusUpdateCallback({
-                    filesCreated,
-                    filesToBeCreated
-                });
-            });
+        if (value.kind === 'file') {
+            fileHandlesByFileName[value.name] = value;
         }
-        return [null];
-    } catch (e) {
-        return [e];
     }
 
+    const { filesAndDetails } = filesAndIndexInfo;
+
+    const filesAndDetailsOfNonMetadataFilesWithoutCorrespondingMetadataFiles = [];
+    for (const fileAndDetails of filesAndDetails) {
+        const fileName = fileAndDetails.fileHandle.name;
+        if (!fileName.endsWith('.metadata.json')) {
+            const metadataFileName = fileName + '.metadata.json';
+            if (fileHandlesByFileName[metadataFileName]) {
+                fileAndDetails.metadataFileHandle = fileHandlesByFileName[metadataFileName];
+            } else {
+                filesAndDetailsOfNonMetadataFilesWithoutCorrespondingMetadataFiles.push(fileAndDetails);
+                fileAndDetails.metadataFileHandle = null;
+            }
+        }
+    }
+
+    for (const fileAndDetails of filesAndDetails) {
+        if (fileAndDetails.metadataFileHandle) {
+            const metadataFile = await fileAndDetails.metadataFileHandle.getFile();
+            const metadataFileContents = await metadataFile.text();
+            const metadataFileJson = JSON.parse(metadataFileContents);
+            fileAndDetails.details = metadataFileJson;
+        }
+    }
+
+    filesAndIndexInfo.readMetadataFiles = true;
 };
 
-const BuildIndex = function ({ handleForFolder }) {
-    const [progressStatus, setProgressStatus] = useState(null);
-    return (
-        <div style={{ display: 'flex' }}>
-            <button
-                type="button"
-                onClick={async () => {
-                    setProgressStatus(null);
-
-                    const [err] = await buildIndex({
-                        handleForFolder,
-                        statusUpdateCallback: function (status) {
-                            const { filesCreated, filesToBeCreated } = status;
-                            setProgressStatus({
-                                filesCreated,
-                                filesToBeCreated
-                            });
-                        }
-                    });
-                }}
-            >
-                Build index
-            </button>
-            {
-                progressStatus &&
-                <Fragment>
-                    <div style={{ marginLeft: 10, lineHeight: '20px' }}>
-                        {progressStatus.filesCreated} / {progressStatus.filesToBeCreated}
-                    </div>
-                    <div style={{ marginLeft: 5, lineHeight: '20px' }}>
-                        ({
-                            parseInt(
-                                1000 *
-                                (progressStatus.filesCreated / progressStatus.filesToBeCreated)
-                            ) / 10
-                        }%)
-                    </div>
-                </Fragment>
-            }
-        </div>
-    );
+const loadIndex = async function (filesAndIndexInfo) {
+    const { readMetadataFiles } = filesAndIndexInfo;
+    if (!readMetadataFiles) {
+        await loadMetadataFiles(filesAndIndexInfo);
+    }
 };
 
 const AdvancedSearchOptions = function ({ handleForFolder }) {
-    const [advancedSearchEnabled, setAdvancedSearch] = useAtom(advancedSearchEnabledAtom);
+    const [advancedSearchEnabled, setAdvancedSearchEnabled] = useAtom(advancedSearchEnabledAtom);
 
     const checkboxEnabled = !!handleForFolder;
     return (
@@ -1318,7 +1188,7 @@ const AdvancedSearchOptions = function ({ handleForFolder }) {
                             checked={advancedSearchEnabled}
                             style={{ marginLeft: 0 }}
                             onChange={function (event) {
-                                setAdvancedSearch(event.target.checked);
+                                setAdvancedSearchEnabled(event.target.checked);
                             }}
                         />
                     </div>
@@ -1354,10 +1224,11 @@ const ReadFiles = function () {
     const [resourcesCount, setResourcesCount] = useState(null);
     const [relevantHandlesCount, setRelevantFilesCount] = useState(null);
     const [relevantFilesTotal, setRelevantFilesTotal] = useState(null);
-    const [filesAndDetails, setFilesAndDetails] = useState({
+    const [filesAndIndexInfo, setFilesAndIndexInfo] = useState({
+        handleForFolder: null,
+        filesAndDetails: null,
         readNames: false,
-        readMetadataFile: false,
-        filesAndDetails: null
+        readMetadataFiles: false
     });
 
     const [selectedFileHandle, setSelectedFileHandle] = useAtom(selectedFileHandleAtom);
@@ -1368,7 +1239,7 @@ const ReadFiles = function () {
         query: null
     });
 
-    const [advancedSearchEnabled, setAdvancedSearch] = useAtom(advancedSearchEnabledAtom);
+    const [advancedSearchEnabled, setAdvancedSearchEnabled] = useAtom(advancedSearchEnabledAtom);
 
     const setQueryWithMode = function () {
         const mode = advancedSearchEnabled ? 'advanced' : 'normal';
@@ -1393,7 +1264,7 @@ const ReadFiles = function () {
                             cursor: 'pointer'
                         }}
                         onClick={async () => {
-                            let dirHandle;
+                            let dirHandle = null;
                             try {
                                 dirHandle = await showDirectoryPicker({
                                     // mode: 'read'
@@ -1408,10 +1279,11 @@ const ReadFiles = function () {
                             setHandleForFolder(dirHandle);
                             setRelevantFilesCount(null);
                             setRelevantFilesTotal(null);
-                            setFilesAndDetails({
+                            setFilesAndIndexInfo({
+                                handleForFolder: null,
+                                filesAndDetails: null,
                                 readNames: false,
-                                readMetadataFile: false,
-                                filesAndDetails: null
+                                readMetadataFiles: false
                             });
                             setSelectedFileHandle(null);
 
@@ -1443,16 +1315,18 @@ const ReadFiles = function () {
                                 for (const handle of handles) {
                                     const file = await handle.getFile();
                                     filesAndDetails.push({
+                                        fileHandle: handle,
                                         file,
                                         details: {}
                                     });
 
                                     setRelevantFilesCount(filesAndDetails.length);
                                 }
-                                setFilesAndDetails({
+                                setFilesAndIndexInfo({
+                                    handleForFolder: dirHandle,
+                                    filesAndDetails,
                                     readNames: true,
-                                    readMetadataFile: false,
-                                    filesAndDetails
+                                    readMetadataFiles: false
                                 });
                             })();
                         }}
@@ -1487,6 +1361,10 @@ const ReadFiles = function () {
                         }}
                         disabled={!handleForFolder}
                         onClick={async () => {
+                            if (advancedSearchEnabled) {
+                                await loadIndex(filesAndIndexInfo);
+                            }
+
                             setQueryWithMode();
                         }}
                     >
@@ -1509,7 +1387,7 @@ const ReadFiles = function () {
                 <div>
                     <ShowImagesWrapper
                         handleForFolder={handleForFolder}
-                        filesAndDetails={filesAndDetails}
+                        filesAndIndexInfo={filesAndIndexInfo}
                         searchQuery={searchQuery}
                         resourcesCount={resourcesCount}
                         relevantHandlesCount={relevantHandlesCount}
