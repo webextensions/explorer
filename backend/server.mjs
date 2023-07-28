@@ -9,6 +9,10 @@ import webpack from 'webpack';
 import webpackDevMiddleware from 'webpack-dev-middleware';
 import webpackHotMiddleware from 'webpack-hot-middleware';
 
+import notifier from 'node-notifier';
+
+import { logger } from 'note-down';
+
 import './server-load-environment-variables.mjs';
 
 import webpackConfig from '../frontend/webpack.config.mjs';
@@ -38,7 +42,25 @@ app.use(bodyParser.raw({ type: 'image/*', limit: '100mb' }));
 
 app.post('/api/identifyTags', identifyTags());
 
-const freePort = await getPort({ port: portNumbers(3000, 3100) });
-app.listen(freePort, () => {
-    console.log(`The server is available at: http://localhost:${freePort}/`);
+const PORT = parseInt(process.env.PORT);
+let portToUse;
+
+if (1 <= PORT && PORT <= 65535) {
+    portToUse = PORT;
+} else if (process.env.PORT_AUTOMATIC === 'yes') {
+    const
+        portFrom = parseInt(process.env.PORT_FROM),
+        portTo = parseInt(process.env.PORT_TO);
+
+    portToUse = await getPort({
+        port: portNumbers(portFrom, portTo)
+    });
+}
+app.listen(portToUse, () => {
+    const serverPath = `http://localhost:${portToUse}/`;
+    logger.info(`The server is available at: ${serverPath}`);
+    notifier.notify({
+        title: '[folder-explorer] - Server started',
+        message: serverPath
+    });
 });

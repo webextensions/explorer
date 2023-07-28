@@ -1,9 +1,10 @@
 {
   "verbose": true,
   "watch": [
-    "./backend/"
+    "./backend/",
+    "./backend/.env"
   ],
-  "ext": "js json mjs",
+  "ext": "env js json mjs",
   "ignoreRoot": [
     ".git"
   ],

@@ -34,11 +34,11 @@
 
 .fileIconHeader,
 .fileIconImage {
-    width: 32px;
+    width: 64px;
 }
 
 .fileIconImage {
-    height: 32px;
+    height: 64px;
 }
 
 .fileName {

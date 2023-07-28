@@ -15,6 +15,7 @@ import Fuse from 'fuse.js';
 import imageCompression from 'browser-image-compression';
 
 import { getImageDimensionsFromBlob } from '../utils/getImageDimensionsFromBlob.js';
+import { resizeImageBlob } from '../utils/resizeImageBlob.js';
 
 // FIXME: Fix this issue
 // eslint-disable-next-line import/no-unresolved
@@ -51,6 +52,8 @@ import {
 
 const trackTimeAsync = trackTime.async;
 window.trackTimeLog = trackTime.log; // DEV-HELPER
+
+const thumbSize = 64;
 
 // TODO: FIXME: Various variable names have to be corrected as per their usage (since they were not adjusted properly
 //              in accordance with the recent code refactoring).
@@ -127,52 +130,6 @@ const convertLocalTimeInIsoLikeFormat = (timestamp, options = {}) => {
     } else {
         return 'NA';
     }
-};
-
-const resizeImageBlob = async function (imageBlob, maxSize, mimeType) {
-    // Create a canvas element with the maximum size
-    const canvas = document.createElement('canvas');
-    canvas.width = maxSize;
-    canvas.height = maxSize;
-
-    // Get the canvas context
-    const ctx = canvas.getContext('2d');
-
-    // Create an image element
-    const img = document.createElement('img');
-
-    // Set the image element's src attribute to the image data
-    img.src = URL.createObjectURL(imageBlob);
-
-    // Wait for the image to load
-    await new Promise((resolve, reject) => {
-        img.addEventListener('load', resolve);
-        img.addEventListener('error', reject);
-    });
-
-    // Get the image's width and height
-    const { width, height } = img;
-
-    // Calculate the new width and height
-    let newWidth,
-        newHeight;
-    if (width > height) {
-        newWidth = maxSize;
-        newHeight = (height / width) * maxSize;
-    } else {
-        newWidth = (width / height) * maxSize;
-        newHeight = maxSize;
-    }
-
-    // Draw the image on the canvas
-    ctx.drawImage(img, 0, 0, newWidth, newHeight);
-
-    // Convert the canvas to a blob
-    return new Promise((resolve) => {
-        canvas.toBlob((blob) => {
-            resolve(blob);
-        }, mimeType);
-    });
 };
 
 // eslint-disable-next-line no-unused-vars
@@ -326,7 +283,7 @@ const MetadataEditor = function ({ handleForFolder, fileHandle, file, json }) {
                 value={JSON.stringify(jsonVal, null, 4)}
                 textareaStyle={{
                     width: '100%',
-                    height: '150px'
+                    height: '350px'
                 }}
                 saveEnabledByDefault={flagEnableSave}
                 onSave={async (text) => {
@@ -611,7 +568,7 @@ const ImageFromAssetFile = ({
                 // const USE_INDEXEDDB = false; // DEV-HELPER
 
                 const idInDbForProps   = `${file.name}:${file.lastModified}:${file.size}:props`;
-                const idInDbForThumb32 = `${file.name}:${file.lastModified}:${file.size}:thumb32`;
+                const idInDbForThumbNN = `${file.name}:${file.lastModified}:${file.size}:thumb${thumbSize}`;
 
                 let props;
                 if (USE_INDEXEDDB) {
@@ -648,35 +605,35 @@ const ImageFromAssetFile = ({
                 // FIXME: "react/prop-types" is getting applied incorrectly here since we set the vatiable name as "props"
                 setDimensions(props.dimensions); // eslint-disable-line react/prop-types
 
-                let thumb32;
+                let thumbNN;
                 if (USE_INDEXEDDB) {
                     try {
-                        thumb32 = await trackTimeAsync(
-                            'dbReadThumb32',
-                            () => getBatchedMemoized(idInDbForThumb32, 200)
+                        thumbNN = await trackTimeAsync(
+                            'dbReadThumbNN',
+                            () => getBatchedMemoized(idInDbForThumbNN, 200)
                         );
                     } catch (e) {
                         // do nothing
                     }
                     if (!delayedLoadTimer) { return; }
                 }
-                if (!thumb32) {
-                    thumb32 = await resizeImageBlob(imageBlob, 32, file.type);
+                if (!thumbNN) {
+                    thumbNN = await resizeImageBlob(imageBlob, thumbSize, file.type);
                     if (!delayedLoadTimer) { return; }
 
                     if (USE_INDEXEDDB) {
-                        const thumb32Blob = thumb32;
+                        const thumbNNBlob = thumbNN;
 
                         await trackTimeAsync(
-                            'dbWriteThumb32',
-                            // () => set(idInDbForThumb32, thumb32Blob), // TODO: FIXME: Handle error for this call
-                            () => setBatched(idInDbForThumb32, thumb32Blob, 100) // TODO: FIXME: Handle error for this call
+                            'dbWriteThumbNN',
+                            // () => set(idInDbForThumbNN, thumbNNBlob), // TODO: FIXME: Handle error for this call
+                            () => setBatched(idInDbForThumbNN, thumbNNBlob, 100) // TODO: FIXME: Handle error for this call
                         );
 
                         if (!delayedLoadTimer) { return; }
                     }
                 }
-                const url = URL.createObjectURL(thumb32);
+                const url = URL.createObjectURL(thumbNN);
                 setImageBlob(url);
             // Some delay to allow for the "useEffect cancel" (clearTimeout) to take effect when the user is scrolling very fast
             // }, getRandomIntInclusive(100, 200));
@@ -715,8 +672,8 @@ const ImageFromAssetFile = ({
                 <img
                     src={imageBlob}
                     style={{
-                        maxWidth: 32,
-                        maxHeight: 32
+                        maxWidth: thumbSize,
+                        maxHeight: thumbSize
                     }}
                     onLoad={function () {
                         // URL.revokeObjectURL(imageBlob);
@@ -952,9 +909,9 @@ const ShowImagesWrapper = function ({
                 <div
                     className={classNames(styles.cell, styles.fileSize)}
                     onClick={() => {
-                        if (sortBy && sortBy.field === 'size' && !sortBy.reverse) {
+                        if (sortBy && sortBy.field === 'size' && sortBy.order === 'asc') {
                             setSortBy({ field: 'size', order: 'desc' });
-                        } else if (sortBy && sortBy.field === 'size' && sortBy.reverse) {
+                        } else if (sortBy && sortBy.field === 'size' && sortBy.order) {
                             setSortBy(null);
                         } else {
                             setSortBy({ field: 'size', order: 'asc' });
@@ -975,14 +932,17 @@ const ShowImagesWrapper = function ({
             </div>
             <div>
                 <Virtuoso
-                    style={{ height: '500px' }}
+                    style={{
+                        // FIXME: This is a hack to make the Virtuoso component fit the available space (may not work perfectly in non-100% zoom)
+                        height: 'calc(100vh - 20px - 20px - 15px - 20px - 5px - 20px - 15px - 1px - 34px - 34px - 1px)'
+                    }}
                     data={finalList}
 
                     // Adjust UX+performance:
                     //     * Higher value here means:
                     //           * faster rendering when scrolling to nearby items (eg: pressing down arrow on keyboard)
                     //           * slower rendering when scrolling to far away items (eg: making huge scroll jump with mouse)
-                    increaseViewportBy={500}
+                    increaseViewportBy={document.documentElement.offsetHeight}
 
                     itemContent={(index, fileAndDetails) => {
                         const file = fileAndDetails.file;
@@ -1421,8 +1381,10 @@ const ReadFiles = function () {
                         marginLeft: 15,
                         border: '1px solid #ccc',
                         borderRadius: 10,
-                        overflow: 'hidden',
-                        width: 252
+                        overflow: 'auto',
+                        width: 352,
+                        // FIXME: This is a hack to make this component fit the available space (may not work perfectly in non-100% zoom)
+                        height: 'calc(100vh - 20px - 20px - 15px - 20px - 5px - 20px - 15px)'
                     }}
                 >
                     <SideViewForFile handleForFolder={handleForFolder} />
