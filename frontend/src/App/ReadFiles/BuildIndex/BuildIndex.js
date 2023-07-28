@@ -1,15 +1,13 @@
 import React, { Fragment, useState } from 'react';
 
-import Menu from '@mui/material/Menu/index.js';
-import MenuItem from '@mui/material/MenuItem/index.js';
+import imageCompression from 'browser-image-compression';
+import ky from 'ky';
 
 import { SplitButton } from '../../Components/SplitButton.js';
 
 import { trackTime } from 'helpmate/dist/misc/trackTime.js';
 
 import { getImageDimensionsFromBlob } from '../../utils/getImageDimensionsFromBlob.js';
-
-import { getDummyTags } from './getDummyTags.js';
 
 const trackTimeAsync = trackTime.async;
 
@@ -19,7 +17,6 @@ const buildIndex = async function ({
     statusUpdateCallback
 }) {
     try {
-
         /*
         // Go through all the files in the folder and find all the files.
         Example input:
@@ -131,8 +128,38 @@ const buildIndex = async function ({
             }
 
             if (indexType === 'full') {
-                const tags = await getDummyTags();
-                metadata.tags = tags;
+                const imageCompressionOptions = {
+                    maxSizeMB: 0.25,
+                    maxWidthOrHeight: 500,
+                    useWebWorker: true
+                };
+
+                const imageFile = file;
+                const compressedFile = await imageCompression(imageFile, imageCompressionOptions);
+
+                const apiUrl = '/api/identifyTags';
+                const response = await ky.post(apiUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': file.type
+                    },
+                    timeout: 120000,
+                    body: compressedFile
+                });
+                const json = await response.json();
+
+                const arrTags = ((json) => {
+                    const data = json.data;
+                    const tags = data;
+                    const arr = [];
+                    for (const tag of tags) {
+                        arr.push(tag.description);
+                    }
+                    return arr;
+                })(json);
+
+                metadata.tags = arrTags;
+                metadata.tagsRaw = json;
             }
 
             const writableStream = await trackTimeAsync(

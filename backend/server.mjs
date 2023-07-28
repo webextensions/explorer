@@ -13,7 +13,7 @@ import './server-load-environment-variables.mjs';
 
 import webpackConfig from '../frontend/webpack.config.mjs';
 
-import { tagImage } from './tag-image.mjs';
+import { identifyTags } from './api/identifyTags/identifyTags.mjs';
 
 const __dirname = path.dirname(import.meta.url).replace('file://', '');
 
@@ -36,23 +36,7 @@ app.use(
 
 app.use(bodyParser.raw({ type: 'image/*', limit: '100mb' }));
 
-app.post('/api/identify-tags', async (req, res) => {
-    const fileContents = req.body;
-
-    const [err, response] = await tagImage(fileContents);
-
-    if (err) {
-        return res.status(500).send({
-            status: 'error',
-            message: err.message
-        });
-    } else {
-        return res.send({
-            status: 'success',
-            data: response
-        });
-    }
-});
+app.post('/api/identifyTags', identifyTags());
 
 const freePort = await getPort({ port: portNumbers(3000, 3100) });
 app.listen(freePort, () => {

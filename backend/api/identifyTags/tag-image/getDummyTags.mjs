@@ -159,7 +159,7 @@ const getRandomIntInclusive = function (min, max) {
     return Math.floor(Math.random() * (max - min + 1) + min); // The maximum is inclusive and the minimum is inclusive
 };
 
-const getDummyTags = async function () {
+const getDummyTags = function () {
     const rand = getRandomIntInclusive(5, 25);
 
     let tags = [];
@@ -170,7 +170,13 @@ const getDummyTags = async function () {
     }
 
     tags = [...new Set(tags)];
-    tags.sort();
+    tags = tags.map((tag) => {
+        return {
+            description: tag,
+            score: getRandomIntInclusive(200000, 1000000) / 1000000
+        };
+    });
+    tags.sort((a, b) => b.score - a.score);
 
     return tags;
 };

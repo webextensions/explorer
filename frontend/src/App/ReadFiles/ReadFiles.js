@@ -1,6 +1,6 @@
 /* global showDirectoryPicker */
 
-import React, { Fragment, useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import PropTypes from 'prop-types';
 
 import classNames from 'classnames';
@@ -12,8 +12,12 @@ import { atom, useAtom } from 'jotai';
 
 import Fuse from 'fuse.js';
 
+import imageCompression from 'browser-image-compression';
+
 import { getImageDimensionsFromBlob } from '../utils/getImageDimensionsFromBlob.js';
 
+// FIXME: Fix this issue
+// eslint-disable-next-line import/no-unresolved
 import pMemoize from 'p-memoize';
 
 import { clear } from 'idb-keyval';
@@ -185,7 +189,8 @@ const timeout = function (ms) {
 };
 
 const sortAndUniqueStringArray = function (array) {
-    return [...new Set(array)].sort();
+    const output = [...new Set(array)].sort();
+    return output;
 };
 
 const createMetadataForImage = async function ({ handleForFolder, imageFile, dimensions }) {
@@ -307,6 +312,7 @@ BasicEditor.propTypes = {
 
 const MetadataEditor = function ({ handleForFolder, fileHandle, file, json }) {
     const [tags, setTags] = useState([]);
+    const [tagsRaw, setTagsRaw] = useState([]);
     const [flagEnableSave, setFlagEnableSave] = useState(false);
 
     const [editorLastSetAt, setEditorLastSetAt] = useState(0);
@@ -341,25 +347,36 @@ const MetadataEditor = function ({ handleForFolder, fileHandle, file, json }) {
             <div style={{ marginTop: 10, display: 'flex' }}>
                 <button
                     onClick={async () => {
-                        const response = await ky.post('/api/identify-tags', {
+                        const imageFile = file;
+                        const imageCompressionOptions = {
+                            maxSizeMB: 0.25,
+                            maxWidthOrHeight: 500,
+                            useWebWorker: true
+                        };
+                        const compressedFile = await imageCompression(imageFile, imageCompressionOptions);
+
+                        const apiUrl = '/api/identifyTags';
+                        const response = await ky.post(apiUrl, {
                             method: 'POST',
                             headers: {
                                 'Content-Type': file.type
                             },
                             timeout: 120000,
-                            body: file
+                            body: compressedFile
                         });
                         const json = await response.json();
 
                         const arrTags = ((json) => {
                             const data = json.data;
+                            const tags = data;
                             const arr = [];
-                            for (const tag of data.result.tags) {
-                                arr.push(tag.tag.en);
+                            for (const tag of tags) {
+                                arr.push(tag.description);
                             }
                             return arr;
                         })(json);
                         setTags(arrTags);
+                        setTagsRaw(json.data);
                     }}
                 >
                     Generate tags
@@ -372,6 +389,11 @@ const MetadataEditor = function ({ handleForFolder, fileHandle, file, json }) {
                             ...tags
                         ];
                         outputJson.tags = sortAndUniqueStringArray(outputJson.tags);
+
+                        if (Array.isArray(tagsRaw) && tagsRaw.length) {
+                            outputJson.tagsRaw = tagsRaw;
+                        }
+
                         setJsonVal(outputJson);
                         setFlagEnableSave(true);
                         setEditorLastSetAt(Date.now());
@@ -902,7 +924,7 @@ const ShowImagesWrapper = function ({
         if (filtered) {
             if (sortBy && sortBy.field === 'size') {
                 const propertyPath = 'file.size';
-                filtered.fileAndDetails.sort(sortFnByPropertyPath(propertyPath, { order: sortBy.order }));
+                filtered.sort(sortFnByPropertyPath(propertyPath, { order: sortBy.order }));
             }
         }
         const finalList = filtered;

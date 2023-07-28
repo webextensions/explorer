@@ -1,0 +1,296 @@
+{
+    "responses": [
+        {
+            "labelAnnotations": [
+                {
+                    "mid": "/m/02wbm",
+                    "description": "Food",
+                    "score": 0.9805876,
+                    "topicality": 0.9805876
+                },
+                {
+                    "mid": "/m/04brg2",
+                    "description": "Tableware",
+                    "score": 0.9588905,
+                    "topicality": 0.9588905
+                },
+                {
+                    "mid": "/m/07xgrh",
+                    "description": "Ingredient",
+                    "score": 0.9028376,
+                    "topicality": 0.9028376
+                },
+                {
+                    "mid": "/m/02xwb",
+                    "description": "Fruit",
+                    "score": 0.8748209,
+                    "topicality": 0.8748209
+                },
+                {
+                    "mid": "/m/0p57p",
+                    "description": "Recipe",
+                    "score": 0.874394,
+                    "topicality": 0.874394
+                },
+                {
+                    "mid": "/m/08tlbj",
+                    "description": "Natural foods",
+                    "score": 0.8430513,
+                    "topicality": 0.8430513
+                },
+                {
+                    "mid": "/m/01ykh",
+                    "description": "Cuisine",
+                    "score": 0.8324303,
+                    "topicality": 0.8324303
+                },
+                {
+                    "mid": "/m/07fbm7",
+                    "description": "Strawberry",
+                    "score": 0.83088243,
+                    "topicality": 0.83088243
+                },
+                {
+                    "mid": "/m/01z1kdw",
+                    "description": "Juice",
+                    "score": 0.8283108,
+                    "topicality": 0.8283108
+                },
+                {
+                    "mid": "/m/02q08p0",
+                    "description": "Dish",
+                    "score": 0.81383693,
+                    "topicality": 0.81383693
+                },
+                {
+                    "mid": "/m/036qh8",
+                    "description": "Produce",
+                    "score": 0.7728196,
+                    "topicality": 0.7728196
+                },
+                {
+                    "mid": "/m/04jdhxy",
+                    "description": "Superfood",
+                    "score": 0.76249695,
+                    "topicality": 0.76249695
+                },
+                {
+                    "mid": "/m/0dxb5",
+                    "description": "Berry",
+                    "score": 0.7320777,
+                    "topicality": 0.7320777
+                },
+                {
+                    "mid": "/m/0271t",
+                    "description": "Drink",
+                    "score": 0.72254914,
+                    "topicality": 0.72254914
+                },
+                {
+                    "mid": "/m/01z562",
+                    "description": "Basket",
+                    "score": 0.7225037,
+                    "topicality": 0.7225037
+                },
+                {
+                    "mid": "/m/0fy4lk",
+                    "description": "Bellini",
+                    "score": 0.7184244,
+                    "topicality": 0.7184244
+                },
+                {
+                    "mid": "/m/05wgwh",
+                    "description": "Sweetness",
+                    "score": 0.7044617,
+                    "topicality": 0.7044617
+                },
+                {
+                    "mid": "/m/04rx8j",
+                    "description": "Fruit salad",
+                    "score": 0.688546,
+                    "topicality": 0.688546
+                },
+                {
+                    "mid": "/m/0270h",
+                    "description": "Dessert",
+                    "score": 0.6837576,
+                    "topicality": 0.6837576
+                },
+                {
+                    "mid": "/m/03_2p8",
+                    "description": "Olallieberry",
+                    "score": 0.65726477,
+                    "topicality": 0.65726477
+                },
+                {
+                    "mid": "/m/03c52m",
+                    "description": "Aguas frescas",
+                    "score": 0.65586084,
+                    "topicality": 0.65586084
+                },
+                {
+                    "mid": "/m/0b3dyl",
+                    "description": "Finger food",
+                    "score": 0.64724046,
+                    "topicality": 0.64724046
+                },
+                {
+                    "mid": "/m/0fbdb",
+                    "description": "Strawberries",
+                    "score": 0.6447541,
+                    "topicality": 0.6447541
+                },
+                {
+                    "mid": "/m/0bh9q8s",
+                    "description": "Delicacy",
+                    "score": 0.64030564,
+                    "topicality": 0.64030564
+                },
+                {
+                    "mid": "/m/04kkgm",
+                    "description": "Bowl",
+                    "score": 0.6300079,
+                    "topicality": 0.6300079
+                },
+                {
+                    "mid": "/m/05s2s",
+                    "description": "Plant",
+                    "score": 0.6158274,
+                    "topicality": 0.6158274
+                },
+                {
+                    "mid": "/m/0h8n22v",
+                    "description": "Serveware",
+                    "score": 0.6072712,
+                    "topicality": 0.6072712
+                },
+                {
+                    "mid": "/m/0c5yy",
+                    "description": "Confectionery",
+                    "score": 0.6062409,
+                    "topicality": 0.6062409
+                },
+                {
+                    "mid": "/m/0hz4q",
+                    "description": "Breakfast",
+                    "score": 0.60270244,
+                    "topicality": 0.60270244
+                },
+                {
+                    "mid": "/m/099ssp",
+                    "description": "Platter",
+                    "score": 0.5938051,
+                    "topicality": 0.5938051
+                },
+                {
+                    "mid": "/m/03ct2_8",
+                    "description": "Frutti di bosco",
+                    "score": 0.584432,
+                    "topicality": 0.584432
+                },
+                {
+                    "mid": "/m/0h8nt_x",
+                    "description": "Storage basket",
+                    "score": 0.5751116,
+                    "topicality": 0.5751116
+                },
+                {
+                    "mid": "/m/02pldym",
+                    "description": "Superfruit",
+                    "score": 0.5707269,
+                    "topicality": 0.5707269
+                },
+                {
+                    "mid": "/m/0284d",
+                    "description": "Dairy",
+                    "score": 0.5706494,
+                    "topicality": 0.5706494
+                },
+                {
+                    "mid": "/m/0krfg",
+                    "description": "Meal",
+                    "score": 0.56667024,
+                    "topicality": 0.56667024
+                },
+                {
+                    "mid": "/m/050gv4",
+                    "description": "Plate",
+                    "score": 0.55965346,
+                    "topicality": 0.55965346
+                },
+                {
+                    "mid": "/m/01tv9",
+                    "description": "Cream",
+                    "score": 0.55671036,
+                    "topicality": 0.55671036
+                },
+                {
+                    "mid": "/m/0h55b",
+                    "description": "Junk food",
+                    "score": 0.5563697,
+                    "topicality": 0.5563697
+                },
+                {
+                    "mid": "/m/027_ny3",
+                    "description": "Still life photography",
+                    "score": 0.55380344,
+                    "topicality": 0.55380344
+                },
+                {
+                    "mid": "/m/0465mr4",
+                    "description": "Frozen dessert",
+                    "score": 0.551095,
+                    "topicality": 0.551095
+                },
+                {
+                    "mid": "/m/01ww8y",
+                    "description": "Snack",
+                    "score": 0.5495798,
+                    "topicality": 0.5495798
+                },
+                {
+                    "mid": "/m/052lwg6",
+                    "description": "Baked goods",
+                    "score": 0.5470282,
+                    "topicality": 0.5470282
+                },
+                {
+                    "mid": "/m/0f454",
+                    "description": "Rubus",
+                    "score": 0.54355484,
+                    "topicality": 0.54355484
+                },
+                {
+                    "mid": "/m/0h8nvk9",
+                    "description": "Dishware",
+                    "score": 0.5382288,
+                    "topicality": 0.5382288
+                },
+                {
+                    "mid": "/m/0b3yr",
+                    "description": "Beach",
+                    "score": 0.53543174,
+                    "topicality": 0.53543174
+                },
+                {
+                    "mid": "/m/0dwgb",
+                    "description": "Orange juice",
+                    "score": 0.52823895,
+                    "topicality": 0.52823895
+                },
+                {
+                    "mid": "/m/0dw_m",
+                    "description": "Brunch",
+                    "score": 0.5212965,
+                    "topicality": 0.5212965
+                },
+                {
+                    "mid": "/m/0jhmw",
+                    "description": "Accessory fruit",
+                    "score": 0.50353533,
+                    "topicality": 0.50353533
+                }
+            ]
+        }
+    ]
+}
