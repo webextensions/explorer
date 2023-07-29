@@ -15,8 +15,11 @@ import Fuse from 'fuse.js';
 import imageCompression from 'browser-image-compression';
 
 import { getImageDimensionsFromBlob } from '../utils/getImageDimensionsFromBlob.js';
-import { resizeImageBlob } from '../utils/resizeImageBlob.js';
 import { getAverageColorFromImageBlob } from '../utils/getAverageColorFromImageBlob.js';
+import {
+    resizeImageBlob,
+    resizeImageBlobAndCropToSize
+} from '../utils/resizeImageBlob.js';
 
 // FIXME: Fix this issue
 // eslint-disable-next-line import/no-unresolved
@@ -515,6 +518,7 @@ const ImageFromAssetFile = ({
     const [file, setFile] = useState(null);
     const [imageBlob, setImageBlob] = useState(null);
     const [dimensions, setDimensions] = useState(null);
+    const [props, setProps] = useState(null);
 
     const [metadataFileObject, setMetadataFileObject] = useState({
         status: null,
@@ -619,6 +623,7 @@ const ImageFromAssetFile = ({
                 }
                 // FIXME: "react/prop-types" is getting applied incorrectly here since we set the vatiable name as "props"
                 setDimensions(props.dimensions); // eslint-disable-line react/prop-types
+                setProps(props);
 
                 let thumbNN;
                 if (USE_INDEXEDDB) {
@@ -633,7 +638,13 @@ const ImageFromAssetFile = ({
                     if (!delayedLoadTimer) { return; }
                 }
                 if (!thumbNN) {
-                    thumbNN = await resizeImageBlob(imageBlob, thumbSize, file.type);
+                    // thumbNN = await resizeImageBlob(imageBlob, thumbSize, file.type);
+                    thumbNN = await resizeImageBlobAndCropToSize({
+                        imageBlob,
+                        width: thumbSize,
+                        height: thumbSize,
+                        mimeType: file.type
+                    });
                     if (!delayedLoadTimer) { return; }
 
                     if (USE_INDEXEDDB) {
@@ -668,7 +679,6 @@ const ImageFromAssetFile = ({
 
     return (
         <div
-            style={{ display: 'flex' }}
             onClick={async () => {
                 if (selectedFileHandle === assetFile) {
                     setSelectedFileHandle(null);
@@ -682,17 +692,43 @@ const ImageFromAssetFile = ({
                     assetFile === selectedFileHandle ? styles.selectedFileRow : null
                 )
             }
+            style={{
+                display: 'flex',
+                marginTop: 8,
+                marginBottom: 8
+            }}
         >
-            <div className={classNames(styles.cell, styles.fileIconImage)}>
+            <div
+                className={classNames(styles.cell, styles.fileIconImage)}
+                style={{
+                    display: 'grid',
+                    placeItems: 'center',
+                    backgroundColor: (() => {
+                        if (!props || !props.averageColor) {
+                            return '#fff';
+                        }
+                        /* eslint-disable indent */
+                        return ([
+                            'rgba(',
+                                props.averageColor.red, ',',
+                                props.averageColor.green, ',',
+                                props.averageColor.blue, ',',
+                                props.averageColor.alpha,
+                            ')'
+                        ].join(''));
+                        /* eslint-enable indent */
+                    })()
+                }}
+            >
                 <img
                     src={imageBlob}
                     style={{
-                        maxWidth: thumbSize,
-                        maxHeight: thumbSize
+                        width: thumbSize,
+                        height: thumbSize
                     }}
-                    onLoad={function () {
-                        // URL.revokeObjectURL(imageBlob);
-                    }}
+                    // onLoad={function () {
+                    //     // URL.revokeObjectURL(imageBlob);
+                    // }}
                 />
             </div>
             <div className={classNames(styles.cell, styles.fileName)}>
