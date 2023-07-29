@@ -8,6 +8,7 @@ import { SplitButton } from '../../Components/SplitButton.js';
 import { trackTime } from 'helpmate/dist/misc/trackTime.js';
 
 import { getImageDimensionsFromBlob } from '../../utils/getImageDimensionsFromBlob.js';
+import { getAverageColorFromImageBlob } from '../../utils/getAverageColorFromImageBlob.js';
 
 const trackTimeAsync = trackTime.async;
 
@@ -123,8 +124,12 @@ const buildIndex = async function ({
 
             if (file.type === 'image/jpeg' || file.type === 'image/png') {
                 const imageBlob = new Blob([file], { type: file.type });
+
                 const dimensions = await getImageDimensionsFromBlob(imageBlob);
                 metadata.dimensions = dimensions;
+
+                const averageColor = await getAverageColorFromImageBlob(imageBlob);
+                metadata.averageColor = averageColor;
             }
 
             if (indexType === 'full') {

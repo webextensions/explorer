@@ -16,6 +16,7 @@ import imageCompression from 'browser-image-compression';
 
 import { getImageDimensionsFromBlob } from '../utils/getImageDimensionsFromBlob.js';
 import { resizeImageBlob } from '../utils/resizeImageBlob.js';
+import { getAverageColorFromImageBlob } from '../utils/getAverageColorFromImageBlob.js';
 
 // FIXME: Fix this issue
 // eslint-disable-next-line import/no-unresolved
@@ -388,7 +389,13 @@ MetadataEditor.propTypes = {
     json: PropTypes.object.isRequired
 };
 
-const MetadataFile = ({ fileHandle, file, handleForFolder, dimensions }) => {
+const MetadataFile = ({
+    fileHandle,
+    file,
+    handleForFolder,
+    dimensions,
+    onLoad
+}) => {
     const [metadataFileObject, setMetadataFileObject] = useState({
         [READYSTATE]: UNINITIALIZED,
         json: null
@@ -427,6 +434,10 @@ const MetadataFile = ({ fileHandle, file, handleForFolder, dimensions }) => {
                     [READYSTATE]: LOADED,
                     json: metadataFileJson
                 });
+
+                if (onLoad) {
+                    onLoad(metadataFileJson);
+                }
             } catch (e) {
                 console.log(e);
                 setMetadataFileObject({
@@ -591,6 +602,10 @@ const ImageFromAssetFile = ({
                     props = {
                         dimensions: computedDimensions
                     };
+
+                    const averageColor = await getAverageColorFromImageBlob(imageBlob);
+                    if (!delayedLoadTimer) { return; }
+                    props.averageColor = averageColor;
 
                     if (USE_INDEXEDDB) {
                         // TODO: FIXME: Handle error for this call
@@ -1003,6 +1018,8 @@ const SideViewForFile = function ({ handleForFolder }) {
 
     const [dimensions, setDimensions] = useState(null);
 
+    const [backgroundColor, setBackgroundColor] = useState('#fff');
+
     useEffect(() => {
         if (selectedFileHandle) {
             (async () => {
@@ -1034,26 +1051,39 @@ const SideViewForFile = function ({ handleForFolder }) {
                             <div
                                 style={{ borderRadius: 10, overflow: 'hidden' }}
                             >
-                                <img
-                                    src={url}
+                                <div
                                     style={{
-                                        maxWidth: '230px',
-                                        maxHeight: '230px'
-                                    }}
-                                    onLoad={function (img) {
-                                        // URL.revokeObjectURL(url);
+                                        width: 230,
+                                        height: 230,
+                                        display: 'grid',
+                                        backgroundColor,
 
-                                        const loadedDimensions = {
-                                            width: img.target.naturalWidth,
-                                            height: img.target.naturalHeight
-                                        };
-
-                                        // FIXME: Use a better approach to compare objects (or at least use something like json-stable-stringify)
-                                        if (JSON.stringify(dimensions) !== JSON.stringify(loadedDimensions)) {
-                                            setDimensions(loadedDimensions);
-                                        }
+                                        // alignItems: 'center',
+                                        // justifyItems: 'center',
+                                        placeItems: 'center'
                                     }}
-                                />
+                                >
+                                    <img
+                                        src={url}
+                                        style={{
+                                            maxWidth: 230,
+                                            maxHeight: 230
+                                        }}
+                                        onLoad={function (img) {
+                                            // URL.revokeObjectURL(url);
+
+                                            const loadedDimensions = {
+                                                width: img.target.naturalWidth,
+                                                height: img.target.naturalHeight
+                                            };
+
+                                            // FIXME: Use a better approach to compare objects (or at least use something like json-stable-stringify)
+                                            if (JSON.stringify(dimensions) !== JSON.stringify(loadedDimensions)) {
+                                                setDimensions(loadedDimensions);
+                                            }
+                                        }}
+                                    />
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1084,6 +1114,23 @@ const SideViewForFile = function ({ handleForFolder }) {
                                         file={selectedFile}
                                         handleForFolder={handleForFolder}
                                         dimensions={dimensions}
+                                        onLoad={function (metadata) {
+                                            const { averageColor } = metadata;
+                                            if (averageColor) {
+                                                /* eslint-disable indent */
+                                                const colorValue = [
+                                                    'rgba(',
+                                                        averageColor.red, ', ',
+                                                        averageColor.green, ', ',
+                                                        averageColor.blue, ', ',
+                                                        averageColor.alpha,
+                                                    ')'
+                                                ].join('');
+                                                /* eslint-enable indent */
+
+                                                setBackgroundColor(colorValue);
+                                            }
+                                        }}
                                     />
                                 }
                             </div>
