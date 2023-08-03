@@ -21,7 +21,6 @@ const BABEL_QUERY = {
 
 const config = {
     mode: 'development',
-    watch: true,
 
     entry: [
         'webpack-hot-middleware/client?path=/__webpack_hmr&timeout=20000',

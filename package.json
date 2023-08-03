@@ -12,7 +12,7 @@
         "stylelint:verbose": "npm run stylelint -- --formatter verbose",
         "lint": "npm run eslint && npm run stylelint",
         "test": "npm run lint",
-        "start:build": "MODE=development webpack --config frontend/webpack.config.mjs",
+        "start:build": "MODE=development webpack --watch --config frontend/webpack.config.mjs",
         "start:server": "            nodemon            backend/server.mjs",
         "start:server:inspect-brk": "node --inspect-brk backend/server.mjs",
         "start": "concurrently \"npm run start:server\" \"npm run start:build\""

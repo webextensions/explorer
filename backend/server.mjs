@@ -43,7 +43,7 @@ app.use(bodyParser.raw({ type: 'image/*', limit: '100mb' }));
 app.post('/api/identifyTags', identifyTags());
 
 const PORT = parseInt(process.env.PORT);
-let portToUse;
+let portToUse = 3000;
 
 if (1 <= PORT && PORT <= 65535) {
     portToUse = PORT;
