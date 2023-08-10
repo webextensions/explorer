@@ -149,6 +149,7 @@ const buildIndex = async function ({
                         'Content-Type': file.type
                     },
                     timeout: 120000,
+                    retry: 5,
                     body: compressedFile
                 });
                 const json = await response.json();
@@ -164,7 +165,7 @@ const buildIndex = async function ({
                 })(json);
 
                 metadata.tags = arrTags;
-                metadata.tagsRaw = json;
+                metadata.tagsRaw = json.data;
             }
 
             const writableStream = await trackTimeAsync(
