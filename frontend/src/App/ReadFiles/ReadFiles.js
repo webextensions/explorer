@@ -116,7 +116,7 @@ const getBatchedMemoized = pMemoize(
     }
 );
 
-const selectedFileHandleAtom = atom(null);
+const selectedFileHandlesAtom = atom(new Set([]));
 
 const advancedSearchEnabledAtom = atom(false);
 
@@ -181,12 +181,10 @@ const createMetadataForImage = async function ({ handleForFolder, imageFile, dim
     }
 };
 
-const GenerateMetadataFile = ({ fileHandle, handleForFolder, dimensions, onError, onSuccess }) => {
+const GenerateMetadataFile = ({ file, handleForFolder, dimensions, onError, onSuccess }) => {
     return (
         <button
             onClick={async () => {
-                const file = fileHandle;
-
                 const [err, metadata] = await createMetadataForImage({
                     handleForFolder,
                     imageFile: file,
@@ -205,7 +203,7 @@ const GenerateMetadataFile = ({ fileHandle, handleForFolder, dimensions, onError
     );
 };
 GenerateMetadataFile.propTypes = {
-    fileHandle: PropTypes.object.isRequired,
+    file: PropTypes.object.isRequired,
     handleForFolder: PropTypes.object.isRequired,
     dimensions: PropTypes.object.isRequired,
     onError: PropTypes.func.isRequired,
@@ -271,7 +269,7 @@ BasicEditor.propTypes = {
     textareaStyle: PropTypes.object
 };
 
-const MetadataEditor = function ({ handleForFolder, fileHandle, file, json }) {
+const MetadataEditor = function ({ handleForFolder, file, json }) {
     const [tags, setTags] = useState([]);
     const [tagsRaw, setTagsRaw] = useState([]);
     const [flagEnableSave, setFlagEnableSave] = useState(false);
@@ -293,7 +291,7 @@ const MetadataEditor = function ({ handleForFolder, fileHandle, file, json }) {
                 onSave={async (text) => {
                     const metadataFileHandle = (
                         await handleForFolder.getFileHandle(
-                            fileHandle.name + '.metadata.json',
+                            file.name + '.metadata.json',
                             { create: false }
                         )
                     );
@@ -394,7 +392,6 @@ MetadataEditor.propTypes = {
 };
 
 const MetadataFile = ({
-    fileHandle,
     file,
     handleForFolder,
     dimensions,
@@ -417,7 +414,7 @@ const MetadataFile = ({
                 try {
                     metadataFileHandle = (
                         await handleForFolder.getFileHandle(
-                            fileHandle.name + '.metadata.json',
+                            file.name + '.metadata.json',
                             { create: false }
                         )
                     );
@@ -452,7 +449,7 @@ const MetadataFile = ({
                 return;
             }
         })();
-    }, [fileHandle, handleForFolder]);
+    }, [file, handleForFolder]);
 
     return (
         <div>
@@ -461,7 +458,7 @@ const MetadataFile = ({
                     if (metadataFileObject[ERROR_CODE] === ERROR_CODE_NOT_FOUND) {
                         return (
                             <GenerateMetadataFile
-                                fileHandle={fileHandle}
+                                file={file}
                                 handleForFolder={handleForFolder}
                                 dimensions={dimensions}
                                 onError={(e) => {
@@ -487,7 +484,6 @@ const MetadataFile = ({
                     return (
                         <MetadataEditor
                             handleForFolder={handleForFolder}
-                            fileHandle={fileHandle}
                             file={file}
                             json={metadataFileObject.json}
                         />
@@ -676,21 +672,33 @@ const ImageFromAssetFile = ({
         };
     }, [assetFile, handleForFolder]);
 
-    const [selectedFileHandle, setSelectedFileHandle] = useAtom(selectedFileHandleAtom);
+    const [selectedFileHandles, setSelectedFileHandles] = useAtom(selectedFileHandlesAtom);
 
     return (
         <div
-            onClick={async () => {
-                if (selectedFileHandle === assetFile) {
-                    setSelectedFileHandle(null);
+            onClick={async (evt) => {
+                if (evt.ctrlKey) {
+                    if (selectedFileHandles.has(assetFile)) {
+                        const updatedSet = new Set(selectedFileHandles);
+                        updatedSet.delete(assetFile);
+                        setSelectedFileHandles(updatedSet);
+                    } else {
+                        const updatedSet = new Set(selectedFileHandles);
+                        updatedSet.add(assetFile);
+                        setSelectedFileHandles(updatedSet);
+                    }
                 } else {
-                    setSelectedFileHandle(assetFile);
+                    if (selectedFileHandles.size === 1 && selectedFileHandles.has(assetFile)) {
+                        setSelectedFileHandles(new Set([]));
+                    } else {
+                        setSelectedFileHandles(new Set([assetFile]));
+                    }
                 }
             }}
             className={
                 classNames(
                     styles.fileRow,
-                    assetFile === selectedFileHandle ? styles.selectedFileRow : null
+                    selectedFileHandles.has(assetFile) ? styles.selectedFileRow : null
                 )
             }
             style={{
@@ -1049,139 +1057,132 @@ ShowImagesWrapper.propTypes = {
 };
 
 const SideViewForFile = function ({ handleForFolder }) {
-    // eslint-disable-next-line no-unused-vars
-    const [selectedFileHandle, setSelectedFileHandle] = useAtom(selectedFileHandleAtom);
-    const [selectedFile, setSelectedFile] = useState(null);
+    const [selectedFileHandles] = useAtom(selectedFileHandlesAtom);
 
     const [dimensions, setDimensions] = useState(null);
 
     const [backgroundColor, setBackgroundColor] = useState('#fff');
 
-    useEffect(() => {
-        if (selectedFileHandle) {
-            (async () => {
-                const file = selectedFileHandle;
-                setSelectedFile(file);
-            })();
-        }
-    }, [selectedFileHandle]);
-
-    if (!selectedFileHandle) {
+    if (selectedFileHandles.size === 0) {
         return (
             <div className={classNames(uc.italic, uc.color_777, uc.textAlignCenter)}>
                 No file selected
             </div>
         );
+    } else if (selectedFileHandles.size >= 2) {
+        return (
+            <div className={classNames(uc.italic, uc.color_777, uc.textAlignCenter)}>
+                {selectedFileHandles.size} files selected
+            </div>
+        );
     } else {
-        if (selectedFile) {
-            const blob = new Blob([selectedFile], { type: selectedFile.type });
-            const url = URL.createObjectURL(blob);
+        let selectedFile;
+        for (const selectedFileHandle of selectedFileHandles) {
+            selectedFile = selectedFileHandle;
+            break; // Get the first element encountered and exit loop
+        }
 
-            return (
-                <div style={{ margin: 10 }}>
-                    <div style={{ display: 'grid' }}>
+        const blob = new Blob([selectedFile], { type: selectedFile.type });
+        const url = URL.createObjectURL(blob);
+
+        return (
+            <div style={{ margin: 10 }}>
+                <div style={{ display: 'grid' }}>
+                    <div
+                        style={{
+                            margin: 'auto'
+                        }}
+                    >
                         <div
-                            style={{
-                                margin: 'auto'
-                            }}
+                            style={{ borderRadius: 10, overflow: 'hidden' }}
                         >
                             <div
-                                style={{ borderRadius: 10, overflow: 'hidden' }}
+                                style={{
+                                    width: 230,
+                                    height: 230,
+                                    display: 'grid',
+                                    backgroundColor,
+
+                                    // alignItems: 'center',
+                                    // justifyItems: 'center',
+                                    placeItems: 'center'
+                                }}
                             >
-                                <div
+                                <img
+                                    src={url}
                                     style={{
-                                        width: 230,
-                                        height: 230,
-                                        display: 'grid',
-                                        backgroundColor,
-
-                                        // alignItems: 'center',
-                                        // justifyItems: 'center',
-                                        placeItems: 'center'
+                                        maxWidth: 230,
+                                        maxHeight: 230
                                     }}
-                                >
-                                    <img
-                                        src={url}
-                                        style={{
-                                            maxWidth: 230,
-                                            maxHeight: 230
-                                        }}
-                                        onLoad={function (img) {
-                                            // URL.revokeObjectURL(url);
+                                    onLoad={function (img) {
+                                        // URL.revokeObjectURL(url);
 
-                                            const loadedDimensions = {
-                                                width: img.target.naturalWidth,
-                                                height: img.target.naturalHeight
-                                            };
+                                        const loadedDimensions = {
+                                            width: img.target.naturalWidth,
+                                            height: img.target.naturalHeight
+                                        };
 
-                                            // FIXME: Use a better approach to compare objects (or at least use something like json-stable-stringify)
-                                            if (JSON.stringify(dimensions) !== JSON.stringify(loadedDimensions)) {
-                                                setDimensions(loadedDimensions);
-                                            }
-                                        }}
-                                    />
-                                </div>
+                                        // FIXME: Use a better approach to compare objects (or at least use something like json-stable-stringify)
+                                        if (JSON.stringify(dimensions) !== JSON.stringify(loadedDimensions)) {
+                                            setDimensions(loadedDimensions);
+                                        }
+                                    }}
+                                />
                             </div>
                         </div>
+                    </div>
+                </div>
+                <div style={{ marginTop: 10 }}>
+                    <div>
+                        Name: {selectedFile.name}
+                    </div>
+                    <div>
+                        Type: {selectedFile.type}
+                    </div>
+                    <div>
+                        Size: {humanReadableByteSize(selectedFile.size)}
+                    </div>
+                    <div>
+                        Last modified: {
+                            convertLocalTimeInIsoLikeFormat(selectedFile.lastModified)
+                        }
                     </div>
                     <div style={{ marginTop: 10 }}>
                         <div>
-                            Name: {selectedFile.name}
+                            Metadata:
                         </div>
                         <div>
-                            Type: {selectedFile.type}
-                        </div>
-                        <div>
-                            Size: {humanReadableByteSize(selectedFile.size)}
-                        </div>
-                        <div>
-                            Last modified: {
-                                convertLocalTimeInIsoLikeFormat(selectedFile.lastModified)
-                            }
-                        </div>
-                        <div style={{ marginTop: 10 }}>
-                            <div>
-                                Metadata:
-                            </div>
-                            <div>
-                                {
-                                    dimensions && // Wait for "dimensions" to be setup
-                                    <MetadataFile
-                                        fileHandle={selectedFileHandle}
-                                        file={selectedFile}
-                                        handleForFolder={handleForFolder}
-                                        dimensions={dimensions}
-                                        onLoad={function (metadata) {
-                                            const { averageColor } = metadata;
-                                            if (averageColor) {
-                                                /* eslint-disable indent */
-                                                const colorValue = [
-                                                    'rgba(',
-                                                        averageColor.red, ', ',
-                                                        averageColor.green, ', ',
-                                                        averageColor.blue, ', ',
-                                                        averageColor.alpha,
-                                                    ')'
-                                                ].join('');
-                                                /* eslint-enable indent */
+                            {
+                                dimensions && // Wait for "dimensions" to be setup
+                                <MetadataFile
+                                    fileHandle={selectedFile}
+                                    file={selectedFile}
+                                    handleForFolder={handleForFolder}
+                                    dimensions={dimensions}
+                                    onLoad={function (metadata) {
+                                        const { averageColor } = metadata;
+                                        if (averageColor) {
+                                            /* eslint-disable indent */
+                                            const colorValue = [
+                                                'rgba(',
+                                                    averageColor.red, ', ',
+                                                    averageColor.green, ', ',
+                                                    averageColor.blue, ', ',
+                                                    averageColor.alpha,
+                                                ')'
+                                            ].join('');
+                                            /* eslint-enable indent */
 
-                                                setBackgroundColor(colorValue);
-                                            }
-                                        }}
-                                    />
-                                }
-                            </div>
+                                            setBackgroundColor(colorValue);
+                                        }
+                                    }}
+                                />
+                            }
                         </div>
                     </div>
                 </div>
-            );
-        } else {
-            return (
-                <div>
-                    Loading...
-                </div>
-            );
-        }
+            </div>
+        );
     }
 };
 SideViewForFile.propTypes = {
@@ -1297,7 +1298,7 @@ const ReadFiles = function () {
         readMetadataFiles: false
     });
 
-    const [selectedFileHandle, setSelectedFileHandle] = useAtom(selectedFileHandleAtom);
+    const [selectedFileHandles, setSelectedFileHandles] = useAtom(selectedFileHandlesAtom);
 
     const [searchInput, setSearchInput] = useState('');
     const [searchQuery, setSearchQuery] = useState({
@@ -1351,7 +1352,7 @@ const ReadFiles = function () {
                                 readNames: false,
                                 readMetadataFiles: false
                             });
-                            setSelectedFileHandle(null);
+                            setSelectedFileHandles(new Set([]));
 
                             // Get handles for all the files
                             const handles = [];
