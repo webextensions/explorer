@@ -36,6 +36,7 @@ import { humanReadableByteSize } from 'helpmate/dist/misc/humanReadableByteSize.
 
 import { trackTime } from 'helpmate/dist/misc/trackTime.js';
 
+import { MultiFileOperations } from './MultiFileOperations/MultiFileOperations.js';
 import { BuildIndex } from './BuildIndex/BuildIndex.js';
 
 import uc from '../../utility-classes.css';
@@ -116,7 +117,7 @@ const getBatchedMemoized = pMemoize(
     }
 );
 
-const selectedFileHandlesAtom = atom(new Set([]));
+const selectedFilesAtom = atom(new Set([]));
 
 const advancedSearchEnabledAtom = atom(false);
 
@@ -672,33 +673,33 @@ const ImageFromAssetFile = ({
         };
     }, [assetFile, handleForFolder]);
 
-    const [selectedFileHandles, setSelectedFileHandles] = useAtom(selectedFileHandlesAtom);
+    const [selectedFiles, setSelectedFiles] = useAtom(selectedFilesAtom);
 
     return (
         <div
             onClick={async (evt) => {
                 if (evt.ctrlKey) {
-                    if (selectedFileHandles.has(assetFile)) {
-                        const updatedSet = new Set(selectedFileHandles);
+                    if (selectedFiles.has(assetFile)) {
+                        const updatedSet = new Set(selectedFiles);
                         updatedSet.delete(assetFile);
-                        setSelectedFileHandles(updatedSet);
+                        setSelectedFiles(updatedSet);
                     } else {
-                        const updatedSet = new Set(selectedFileHandles);
+                        const updatedSet = new Set(selectedFiles);
                         updatedSet.add(assetFile);
-                        setSelectedFileHandles(updatedSet);
+                        setSelectedFiles(updatedSet);
                     }
                 } else {
-                    if (selectedFileHandles.size === 1 && selectedFileHandles.has(assetFile)) {
-                        setSelectedFileHandles(new Set([]));
+                    if (selectedFiles.size === 1 && selectedFiles.has(assetFile)) {
+                        setSelectedFiles(new Set([]));
                     } else {
-                        setSelectedFileHandles(new Set([assetFile]));
+                        setSelectedFiles(new Set([assetFile]));
                     }
                 }
             }}
             className={
                 classNames(
                     styles.fileRow,
-                    selectedFileHandles.has(assetFile) ? styles.selectedFileRow : null
+                    selectedFiles.has(assetFile) ? styles.selectedFileRow : null
                 )
             }
             style={{
@@ -1057,28 +1058,39 @@ ShowImagesWrapper.propTypes = {
 };
 
 const SideViewForFile = function ({ handleForFolder }) {
-    const [selectedFileHandles] = useAtom(selectedFileHandlesAtom);
+    const [selectedFiles] = useAtom(selectedFilesAtom);
 
     const [dimensions, setDimensions] = useState(null);
 
     const [backgroundColor, setBackgroundColor] = useState('#fff');
 
-    if (selectedFileHandles.size === 0) {
+    if (selectedFiles.size === 0) {
         return (
             <div className={classNames(uc.italic, uc.color_777, uc.textAlignCenter)}>
                 No file selected
             </div>
         );
-    } else if (selectedFileHandles.size >= 2) {
+    } else if (selectedFiles.size >= 2) {
         return (
-            <div className={classNames(uc.italic, uc.color_777, uc.textAlignCenter)}>
-                {selectedFileHandles.size} files selected
+            <div style={{ padding: '20px 10px' }}>
+                <div className={classNames(uc.italic, uc.color_777, uc.textAlignCenter)}>
+                    {selectedFiles.size} files selected
+                </div>
+
+                <div style={{ marginTop: 10 }}>
+                    <div>
+                        <MultiFileOperations
+                            selectedFiles={selectedFiles}
+                            handleForFolder={handleForFolder}
+                        />
+                    </div>
+                </div>
             </div>
         );
     } else {
         let selectedFile;
-        for (const selectedFileHandle of selectedFileHandles) {
-            selectedFile = selectedFileHandle;
+        for (const item of selectedFiles) {
+            selectedFile = item;
             break; // Get the first element encountered and exit loop
         }
 
@@ -1298,7 +1310,7 @@ const ReadFiles = function () {
         readMetadataFiles: false
     });
 
-    const [selectedFileHandles, setSelectedFileHandles] = useAtom(selectedFileHandlesAtom);
+    const [selectedFiles, setSelectedFiles] = useAtom(selectedFilesAtom);
 
     const [searchInput, setSearchInput] = useState('');
     const [searchQuery, setSearchQuery] = useState({
@@ -1352,7 +1364,7 @@ const ReadFiles = function () {
                                 readNames: false,
                                 readMetadataFiles: false
                             });
-                            setSelectedFileHandles(new Set([]));
+                            setSelectedFiles(new Set([]));
 
                             // Get handles for all the files
                             const handles = [];
