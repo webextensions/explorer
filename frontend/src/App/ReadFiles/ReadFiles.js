@@ -510,6 +510,7 @@ const getRandomIntInclusive = function (min, max) {
 };
 
 const ImageFromAssetFile = ({
+    finalList,
     assetFile,
     handleForFolder
 }) => {
@@ -678,7 +679,24 @@ const ImageFromAssetFile = ({
     return (
         <div
             onClick={async (evt) => {
-                if (evt.ctrlKey) {
+                // TODO: Handle ctrl+shift+click
+                //       In case of ctrl+shift+click, the "first selected index" approach should change to "last clicked index" as per expected UX for that case
+                if (evt.shiftKey) {
+                    const files = [...selectedFiles];
+                    const firstSelectedFile = files[0];
+                    const firstSelectedFileIndex = finalList.findIndex((file) => file.file === firstSelectedFile);
+                    const currentFileIndex = finalList.findIndex((file) => file.file === assetFile);
+                    const minIndex = Math.min(firstSelectedFileIndex, currentFileIndex);
+                    const maxIndex = Math.max(firstSelectedFileIndex, currentFileIndex);
+                    const newSet = new Set([]);
+                    newSet.add(firstSelectedFile); // Retain first selected file
+                    for (let i = minIndex; i <= maxIndex; i++) {
+                        if (!newSet.has(finalList[i].file)) {
+                            newSet.add(finalList[i].file);
+                        }
+                    }
+                    setSelectedFiles(newSet);
+                } else if (evt.ctrlKey) {
                     if (selectedFiles.has(assetFile)) {
                         const updatedSet = new Set(selectedFiles);
                         updatedSet.delete(assetFile);
@@ -991,7 +1009,7 @@ const ShowImagesWrapper = function ({
                     Metadata
                 </div>
             </div>
-            <div>
+            <div style={{ userSelect: 'none' }}>
                 <Virtuoso
                     style={{
                         // FIXME: This is a hack to make the Virtuoso component fit the available space (may not work perfectly in non-100% zoom)
@@ -1012,6 +1030,7 @@ const ShowImagesWrapper = function ({
                         return (
                             <ImageFromAssetFile
                                 key={fileName}
+                                finalList={finalList}
                                 assetFile={file}
                                 handleForFolder={handleForFolder}
                             />
