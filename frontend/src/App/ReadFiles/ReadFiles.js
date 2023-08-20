@@ -1497,13 +1497,20 @@ const ReadFiles = function () {
                         marginLeft: 15,
                         border: '1px solid #ccc',
                         borderRadius: 10,
-                        overflow: 'auto',
+                        overflow: 'hidden',
                         width: 352,
                         // FIXME: This is a hack to make this component fit the available space (may not work perfectly in non-100% zoom)
                         height: 'calc(100vh - 20px - 20px - 15px - 20px - 5px - 20px - 15px)'
                     }}
                 >
-                    <SideViewForFile handleForFolder={handleForFolder} />
+                    <div
+                        style={{
+                            overflowY: 'scroll',
+                            height: '100%'
+                        }}
+                    >
+                        <SideViewForFile handleForFolder={handleForFolder} />
+                    </div>
                 </div>
             </div>
         </div>
