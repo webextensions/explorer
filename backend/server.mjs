@@ -59,7 +59,7 @@ app.listen(portToUse, () => {
     const serverPath = `http://localhost:${portToUse}/`;
     logger.info(`The server is available at: ${serverPath}`);
     notifier.notify({
-        title: '[folder-explorer] - Server started',
+        title: '[explorer] - Server started',
         message: serverPath
     });
 });

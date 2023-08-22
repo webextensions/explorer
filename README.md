@@ -1,2 +1,2 @@
-# folder-explorer
-Folder Explorer
+# Explorer
+Explorer - Folders & files
