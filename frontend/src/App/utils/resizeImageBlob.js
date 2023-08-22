@@ -33,8 +33,8 @@ const resizeImageBlob = async function (imageBlob, maxSize, mimeType) {
     // Get the canvas context
     const ctx = canvas.getContext('2d');
 
-    // Set background as white
-    ctx.fillStyle = '#fff';
+    // Set background as transparent (white)
+    ctx.fillStyle = 'rgba(255, 255, 255, 0)';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     // Draw the image on the canvas
@@ -100,8 +100,8 @@ const resizeImageBlobAndCropToSize = async function ({
     // Get the canvas context
     const ctx = canvas.getContext('2d');
 
-    // Set background as white
-    ctx.fillStyle = '#fff';
+    // Set background as transparent (white)
+    ctx.fillStyle = 'rgba(255, 255, 255, 0)';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     // Draw the image on the canvas
@@ -119,8 +119,8 @@ const resizeImageBlobAndCropToSize = async function ({
     // Get the canvas context
     const ctx2 = canvas2.getContext('2d');
 
-    // Set background as white
-    ctx2.fillStyle = '#fff';
+    // Set background as transparent (white)
+    ctx2.fillStyle = 'rgba(255, 255, 255, 0)';
     ctx2.fillRect(0, 0, canvas2.width, canvas2.height);
 
     // Draw the image on the canvas

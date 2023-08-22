@@ -600,24 +600,30 @@ const ImageFromAssetFile = ({
                     }
                 }
                 if (!props) {
-                    const computedDimensions = await getImageDimensionsFromBlob(imageBlob);
-                    if (!delayedLoadTimer) { return; }
-                    props = {
-                        dimensions: computedDimensions
-                    };
+                    props = {};
 
-                    const averageColor = await getAverageColorFromImageBlob(imageBlob);
+                    const [errDimensions, computedDimensions] = await getImageDimensionsFromBlob(imageBlob);
                     if (!delayedLoadTimer) { return; }
-                    props.averageColor = averageColor;
+                    if (!errDimensions) {
+                        props.dimensions = computedDimensions;
+                    }
+
+                    const [errAverageColor, averageColor] = await getAverageColorFromImageBlob(imageBlob);
+                    if (!delayedLoadTimer) { return; }
+                    if (!errAverageColor) {
+                        props.averageColor = averageColor;
+                    }
 
                     if (USE_INDEXEDDB) {
-                        // TODO: FIXME: Handle error for this call
-                        await trackTimeAsync(
-                            'dbWriteProps',
-                            // () => set(idInDbForProps, props),
-                            () => setBatched(idInDbForProps, props, 100)
-                        );
-                        if (!delayedLoadTimer) { return; }
+                        if (Object.keys(props).length) {
+                            // TODO: FIXME: Handle error for this call
+                            await trackTimeAsync(
+                                'dbWriteProps',
+                                // () => set(idInDbForProps, props),
+                                () => setBatched(idInDbForProps, props, 100)
+                            );
+                            if (!delayedLoadTimer) { return; }
+                        }
                     }
                 }
                 // FIXME: "react/prop-types" is getting applied incorrectly here since we set the vatiable name as "props"
@@ -1401,7 +1407,8 @@ const ReadFiles = function () {
                                 if (
                                     entry.name.endsWith('.jpeg') ||
                                     entry.name.endsWith('.jpg')  ||
-                                    entry.name.endsWith('.png')
+                                    entry.name.endsWith('.png')  ||
+                                    entry.name.endsWith('.svg')
                                 ) {
                                     handles.push(entry);
                                 }

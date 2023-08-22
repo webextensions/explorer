@@ -195,17 +195,25 @@ const buildIndex = async function ({
                 }
 
                 if (digFurther) {
-                    if (file.type === 'image/jpeg' || file.type === 'image/png') {
+                    if (
+                        file.type === 'image/jpeg'    ||
+                        file.type === 'image/png'     ||
+                        file.type === 'image/svg+xml'
+                    ) {
                         const imageBlob = new Blob([file], { type: file.type });
 
                         if (metadataToBuild.dimensions && !outputMetadataFileJson.dimensions) {
-                            const dimensions = await getImageDimensionsFromBlob(imageBlob);
-                            outputMetadataFileJson.dimensions = dimensions;
+                            const [err, dimensions] = await getImageDimensionsFromBlob(imageBlob);
+                            if (!err) {
+                                outputMetadataFileJson.dimensions = dimensions;
+                            }
                         }
 
                         if (metadataToBuild.averageColor && !outputMetadataFileJson.averageColor) {
-                            const averageColor = await getAverageColorFromImageBlob(imageBlob);
-                            outputMetadataFileJson.averageColor = averageColor;
+                            const [err, averageColor] = await getAverageColorFromImageBlob(imageBlob);
+                            if (!err) {
+                                outputMetadataFileJson.averageColor = averageColor;
+                            }
                         }
 
                         if (metadataToBuild.tags && !outputMetadataFileJson.tags) {
