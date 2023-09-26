@@ -893,22 +893,33 @@ const sortFnByPropertyPath = function (propertyPath, options = {}) {
 
     return function (a, b) {
         // Extract the nested property value from both objects
-        const propA = getObjectProperty(a, propertyPath);
-        const propB = getObjectProperty(b, propertyPath);
+        let propA = getObjectProperty(a, propertyPath);
+        if (typeof propA === 'string') {
+            propA = propA.toLowerCase();
+        }
+        let propB = getObjectProperty(b, propertyPath);
+        if (typeof propB === 'string') {
+            propB = propB.toLowerCase();
+        }
+
+        const nameA = getObjectProperty(a, 'file.name').toLowerCase();
+        const nameB = getObjectProperty(b, 'file.name').toLowerCase();
 
         if (order === 'desc') {
             if (propA === undefined || propA === null) return 1;
             if (propB === undefined || propA === null) return -1;
             if (propA > propB) return -1;
             if (propA < propB) return 1;
-            return 0;
         } else {
             if (propA === undefined || propA === null) return -1;
             if (propB === undefined || propA === null) return 1;
             if (propA < propB) return -1;
             if (propA > propB) return 1;
-            return 0;
         }
+
+        if (nameA < nameB) return -1;
+        if (nameA > nameB) return 1;
+        return 0;
     };
 };
 
@@ -964,9 +975,26 @@ const ShowImagesWrapper = function ({
         }
 
         if (filtered) {
-            if (sortBy && sortBy.field === 'size') {
-                const propertyPath = 'file.size';
+            if (
+                sortBy &&
+                (
+                    sortBy.field === 'lastModified' ||
+                    sortBy.field === 'size' ||
+                    sortBy.field === 'type'
+                )
+            ) {
+                let propertyPath;
+                if (sortBy.field === 'lastModified') {
+                    propertyPath = 'file.lastModified';
+                } else if (sortBy.field === 'size') {
+                    propertyPath = 'file.size';
+                } else if (sortBy.field === 'type') {
+                    propertyPath = 'file.type';
+                }
                 filtered.sort(sortFnByPropertyPath(propertyPath, { order: sortBy.order }));
+            } else {
+                const propertyPath = 'file.name';
+                filtered.sort(sortFnByPropertyPath(propertyPath, { order: 'asc' }));
             }
         }
         const finalList = filtered;
@@ -979,6 +1007,14 @@ const ShowImagesWrapper = function ({
         advancedSearchEnabled
     ]);
 
+    const applySortByUpdate = function (fieldClicked) {
+        if (sortBy && sortBy.field === fieldClicked && sortBy.order === 'asc') {
+            setSortBy({ field: fieldClicked, order: 'desc' });
+        } else {
+            setSortBy({ field: fieldClicked, order: 'asc' });
+        }
+    };
+
     return (
         <div style={{ width: 830, border: '1px solid #ccc', borderRadius: 10, overflow: 'hidden' }}>
             <div className={styles.headerRow}>
@@ -988,19 +1024,18 @@ const ShowImagesWrapper = function ({
                 <div className={classNames(styles.cell, styles.fileName, 'bold')}>
                     Name
                 </div>
-                <div className={classNames(styles.cell, styles.fileType, 'bold')}>
+                <div
+                    className={classNames(styles.cell, styles.fileType, 'bold')}
+                    onClick={() => {
+                        applySortByUpdate('type');
+                    }}
+                >
                     Type
                 </div>
                 <div
                     className={classNames(styles.cell, styles.fileSize)}
                     onClick={() => {
-                        if (sortBy && sortBy.field === 'size' && sortBy.order === 'asc') {
-                            setSortBy({ field: 'size', order: 'desc' });
-                        } else if (sortBy && sortBy.field === 'size' && sortBy.order) {
-                            setSortBy(null);
-                        } else {
-                            setSortBy({ field: 'size', order: 'asc' });
-                        }
+                        applySortByUpdate('size');
                     }}
                 >
                     Size
@@ -1008,7 +1043,12 @@ const ShowImagesWrapper = function ({
                 <div className={classNames(styles.cell, styles.fileDimensions)}>
                     Dimensions
                 </div>
-                <div className={classNames(styles.cell, styles.fileLastModified)}>
+                <div
+                    className={classNames(styles.cell, styles.fileLastModified)}
+                    onClick={() => {
+                        applySortByUpdate('lastModified');
+                    }}
+                >
                     Last modified
                 </div>
                 <div className={classNames(styles.cell, styles.metadataContents)}>
