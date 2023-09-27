@@ -979,6 +979,7 @@ const ShowImagesWrapper = function ({
                 sortBy &&
                 (
                     sortBy.field === 'lastModified' ||
+                    sortBy.field === 'name' ||
                     sortBy.field === 'size' ||
                     sortBy.field === 'type'
                 )
@@ -986,6 +987,8 @@ const ShowImagesWrapper = function ({
                 let propertyPath;
                 if (sortBy.field === 'lastModified') {
                     propertyPath = 'file.lastModified';
+                } else if (sortBy.field === 'name') {
+                    propertyPath = 'file.name';
                 } else if (sortBy.field === 'size') {
                     propertyPath = 'file.size';
                 } else if (sortBy.field === 'type') {
@@ -1021,7 +1024,12 @@ const ShowImagesWrapper = function ({
                 <div className={classNames(styles.cell, styles.fileIconHeader)}>
                     &nbsp;
                 </div>
-                <div className={classNames(styles.cell, styles.fileName, 'bold')}>
+                <div
+                    className={classNames(styles.cell, styles.fileName, 'bold')}
+                    onClick={() => {
+                        applySortByUpdate('name');
+                    }}
+                >
                     Name
                 </div>
                 <div
