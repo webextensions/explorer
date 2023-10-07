@@ -1,14 +1,14 @@
 {
-  "verbose": true,
-  "watch": [
-    "./backend/",
-    "./backend/.env"
-  ],
-  "ext": "env js json mjs",
-  "ignoreRoot": [
-    ".git"
-  ],
-  "ignore": [
-    "./node_modules/"
-  ]
+    "verbose": true,
+    "watch": [
+        "./backend/",
+        "./backend/.env"
+    ],
+    "ext": "env js json mjs",
+    "ignoreRoot": [
+        ".git"
+    ],
+    "ignore": [
+        "./node_modules/"
+    ]
 }
