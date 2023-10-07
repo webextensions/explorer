@@ -16,9 +16,11 @@
         "lint": "npm run eslint && npm run stylelint",
         "test": "npm run lint",
         "start:build": "MODE=development webpack --watch --config frontend/webpack.config.mjs",
-        "start:server": "            nodemon            backend/server.mjs",
-        "start:server:inspect-brk": "node --inspect-brk backend/server.mjs",
-        "start": "concurrently \"npm run start:server\" \"npm run start:build\""
+        "start:server": "                              nodemon --exitcrash backend/server.mjs",
+        "start:server:port-dynamic": "PORT_DYNAMIC=yes nodemon --exitcrash backend/server.mjs",
+        "start:server:inspect-brk": "                  node --inspect-brk  backend/server.mjs",
+        "start": "             concurrently --kill-others \"npm run start:server\"              \"npm run start:build\"",
+        "start:port-dynamic": "concurrently --kill-others \"npm run start:server:port-dynamic\" \"npm run start:build\""
     },
     "dependencies": {
         "@pmmmwh/react-refresh-webpack-plugin": "^0.5.11",

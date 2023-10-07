@@ -42,19 +42,22 @@ app.use(bodyParser.raw({ type: 'image/*', limit: '100mb' }));
 
 app.post('/api/identifyTags', identifyTags());
 
-const PORT = parseInt(process.env.PORT);
-let portToUse;
-
-if (1 <= PORT && PORT <= 65535) {
-    portToUse = PORT;
+let portFromConfig = parseInt(process.env.PORT);
+if (1 <= portFromConfig && portFromConfig <= 65535) {
+    // do nothing
 } else {
-    const portFrom = parseInt(process.env.PORT_FROM) || 3000;
-    const portTo   = parseInt(process.env.PORT_TO)   || 65535;
-
-    portToUse = await getPort({
-        port: portNumbers(portFrom, portTo)
-    });
+    portFromConfig = 3000;
 }
+
+let portToUse;
+if (process.env.PORT_DYNAMIC === 'yes') {
+    portToUse = await getPort({
+        port: portNumbers(portFromConfig, 65535)
+    });
+} else {
+    portToUse = portFromConfig;
+}
+
 app.listen(portToUse, () => {
     const serverPath = `http://localhost:${portToUse}/`;
     logger.info(`The server is available at: ${serverPath}`);
