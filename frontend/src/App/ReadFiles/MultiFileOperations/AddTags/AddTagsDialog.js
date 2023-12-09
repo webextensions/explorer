@@ -124,7 +124,7 @@ const AddTagsDialog = ({
                                 tags = tags.map((tag) => {
                                     return tag.trim();
                                 });
-                                tags = tags.filter(x => x);
+                                tags = tags.filter((x) => x);
 
                                 const status = await addTagsToFiles({
                                     handleForFolder,

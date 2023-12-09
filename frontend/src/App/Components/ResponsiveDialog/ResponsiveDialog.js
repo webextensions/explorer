@@ -14,7 +14,7 @@ import CloseIcon from '@mui/icons-material/Close.js';
 const DialogTitleWithClose = (props) => {
     const { children } = props;
     return (
-        <DialogTitle className={'ResponsiveDialogTitle'}>
+        <DialogTitle className="ResponsiveDialogTitle">
             <div>{children}</div>
         </DialogTitle>
     );

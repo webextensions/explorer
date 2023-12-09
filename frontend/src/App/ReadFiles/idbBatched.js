@@ -59,7 +59,6 @@ const getBatched = async function (key, batchDuration) {
     return response;
 };
 
-
 let setRequests = {
     pendingRequests: [],
     timeOfFirstPendingRequest: null

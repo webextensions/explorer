@@ -4,7 +4,7 @@ import { tagImageViaImagga } from './tag-image/tagImageViaImagga.mjs';
 import { getDummyTags } from './tag-image/getDummyTags.mjs';
 
 const timeout = function (ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise((resolve) => setTimeout(resolve, ms));
 };
 
 // Middleware

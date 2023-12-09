@@ -147,7 +147,7 @@ const getFile = async function () {
 
 // eslint-disable-next-line no-unused-vars
 const timeout = function (ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise((resolve) => setTimeout(resolve, ms));
 };
 
 const sortAndUniqueStringArray = function (array) {
@@ -741,7 +741,7 @@ const ImageFromAssetFile = ({
                         if (!props || !props.averageColor) {
                             return '#fff';
                         }
-                        /* eslint-disable indent */
+                        /* eslint-disable @stylistic/indent */
                         return ([
                             'rgba(',
                                 props.averageColor.red, ',',
@@ -750,7 +750,7 @@ const ImageFromAssetFile = ({
                                 props.averageColor.alpha,
                             ')'
                         ].join(''));
-                        /* eslint-enable indent */
+                        /* eslint-enable @stylistic/indent */
                     })()
                 }}
             >
@@ -1247,7 +1247,7 @@ const SideViewForFile = function ({ handleForFolder }) {
                                     onLoad={function (metadata) {
                                         const { averageColor } = metadata;
                                         if (averageColor) {
-                                            /* eslint-disable indent */
+                                            /* eslint-disable @stylistic/indent */
                                             const colorValue = [
                                                 'rgba(',
                                                     averageColor.red, ', ',
@@ -1256,7 +1256,7 @@ const SideViewForFile = function ({ handleForFolder }) {
                                                     averageColor.alpha,
                                                 ')'
                                             ].join('');
-                                            /* eslint-enable indent */
+                                            /* eslint-enable @stylistic/indent */
 
                                             setBackgroundColor(colorValue);
                                         }
@@ -1279,7 +1279,7 @@ const loadMetadataFiles = async function (filesAndIndexInfo) {
     const iterator = await handleForFolder.values();
 
     const fileHandlesByFileName = {};
-    while (true) {
+    while (true) { // eslint-disable-line no-constant-condition
         const { done, value } = await iterator.next();
         if (done) {
             break;
@@ -1444,7 +1444,7 @@ const ReadFiles = function () {
                             let index = 0;
                             setResourcesCount(index);
                             const iterator = dirHandle.values();
-                            while (true) {
+                            while (true) { // eslint-disable-line no-constant-condition
                                 const response = await iterator.next();
                                 if (response.done) {
                                     break;
