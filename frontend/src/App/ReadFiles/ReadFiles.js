@@ -430,7 +430,23 @@ const MetadataFile = ({
 
                 const metadataFile = await metadataFileHandle.getFile();
                 const metadataFileContents = await metadataFile.text();
-                const metadataFileJson = JSON.parse(metadataFileContents);
+                const metadataFileJson = (() => {
+                    try {
+                        const json = JSON.parse(metadataFileContents);
+                        return json;
+                    } catch (e) {
+                        if (
+                            typeof metadataFileContents === 'string' &&
+                            metadataFileContents.trim() === ''
+                        ) {
+                            return {};
+                        } else {
+                            return {
+                                oldContent: metadataFileContents
+                            };
+                        }
+                    }
+                })();
 
                 setMetadataFileObject({
                     [READYSTATE]: LOADED,
