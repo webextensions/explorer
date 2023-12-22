@@ -8,7 +8,7 @@ const App = () => {
     return (
         <div style={{ display: 'grid' }}>
             <div style={{ margin: 'auto' }}>
-                <div style={{ marginTop: 20 }}>
+                <div style={{ marginTop: 20, marginBottom: 10, height: 'calc(100vh - 20px - 10px)' }}>
                     <ReadFiles />
                 </div>
             </div>

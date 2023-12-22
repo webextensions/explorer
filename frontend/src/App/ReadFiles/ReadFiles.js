@@ -1019,7 +1019,17 @@ const ShowImagesWrapper = function ({
     };
 
     return (
-        <div style={{ width: 830, border: '1px solid #ccc', borderRadius: 10, overflow: 'hidden' }}>
+        <div
+            style={{
+                display: 'flex',
+                flexDirection: 'column',
+                width: 830,
+                height: '100%',
+                border: '1px solid #ccc',
+                borderRadius: 10,
+                overflow: 'hidden'
+            }}
+        >
             <div className={styles.headerRow}>
                 <div className={classNames(styles.cell, styles.fileIconHeader)}>
                     &nbsp;
@@ -1063,12 +1073,8 @@ const ShowImagesWrapper = function ({
                     Metadata
                 </div>
             </div>
-            <div style={{ userSelect: 'none' }}>
+            <div style={{ flex: 1, userSelect: 'none' }}>
                 <Virtuoso
-                    style={{
-                        // FIXME: This is a hack to make the Virtuoso component fit the available space (may not work perfectly in non-100% zoom)
-                        height: 'calc(100vh - 20px - 20px - 15px - 20px - 5px - 20px - 15px - 1px - 34px - 34px - 1px)'
-                    }}
                     data={finalList}
 
                     // Adjust UX+performance:
@@ -1408,7 +1414,13 @@ const ReadFiles = function () {
     };
 
     return (
-        <div>
+        <div
+            style={{
+                display: 'grid',
+                height: '100%',
+                gridTemplateRows: 'auto auto auto minmax(0, 1fr)'
+            }}
+        >
             <div style={{ display: 'grid' }}>
                 <div style={{ margin: 'auto' }}>
                     <button
@@ -1525,7 +1537,8 @@ const ReadFiles = function () {
                     </button>
                 </div>
             </div>
-            <div style={{ marginTop: 5 }}>
+
+            <div style={{ marginTop: 5, marginBottom: 15 }}>
                 <AdvancedSearchOptions
                     handleForFolder={handleForFolder}
                 />
@@ -1533,8 +1546,8 @@ const ReadFiles = function () {
 
             <div
                 style={{
-                    marginTop: 15,
-                    display: 'flex'
+                    display: 'grid',
+                    gridTemplateColumns: 'auto auto'
                 }}
             >
                 <div>
@@ -1553,14 +1566,14 @@ const ReadFiles = function () {
                         border: '1px solid #ccc',
                         borderRadius: 10,
                         overflow: 'hidden',
-                        width: 352,
-                        // FIXME: This is a hack to make this component fit the available space (may not work perfectly in non-100% zoom)
-                        height: 'calc(100vh - 20px - 20px - 15px - 20px - 5px - 20px - 15px)'
+                        width: 352
                     }}
                 >
                     <div
                         style={{
                             overflowY: 'scroll',
+                            // overflowY: 'auto',
+
                             height: '100%'
                         }}
                     >
