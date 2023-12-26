@@ -3,6 +3,12 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 
+import { useAtom } from 'jotai';
+
+import { useZustandStore } from '../../store/zustandStore.js';
+
+import { selectedFilesAtom } from '../../store/jotaiStore.js';
+
 const TreeView = function () {
     return (
         <div>
@@ -11,14 +17,14 @@ const TreeView = function () {
     );
 };
 
-const OpenFolderButton = function ({
-    setHandleForFolder,
-    setRelevantFilesCount,
-    setRelevantFilesTotal,
-    setFilesAndIndexInfo,
-    setSelectedFiles,
-    setResourcesCount
-}) {
+const OpenFolderButton = function () {
+    const setHandleForFolder = useZustandStore((state) => state.setHandleForFolder);
+    const setRelevantFilesCount = useZustandStore((state) => state.setRelevantFilesCount);
+    const setRelevantFilesTotal = useZustandStore((state) => state.setRelevantFilesTotal);
+    const setFilesAndIndexInfo = useZustandStore((state) => state.setFilesAndIndexInfo);
+    const [selectedFiles, setSelectedFiles] = useAtom(selectedFilesAtom);
+    const setResourcesCount = useZustandStore((state) => state.setResourcesCount);
+
     return (
         <div>
             <button
@@ -113,29 +119,11 @@ OpenFolderButton.propTypes = {
     setResourcesCount: PropTypes.func.isRequired
 };
 
-const FoldersTreePane = function ({
-    setHandleForFolder,
-    setRelevantFilesCount,
-    setRelevantFilesTotal,
-    setFilesAndIndexInfo,
-    setSelectedFiles,
-    setResourcesCount
-}) {
+const FoldersTreePane = function () {
     return (
-        <div
-            style={{
-                height: '100%'
-            }}
-        >
+        <div style={{ height: '100%' }}>
             <div>
-                <OpenFolderButton
-                    setHandleForFolder={setHandleForFolder}
-                    setRelevantFilesCount={setRelevantFilesCount}
-                    setRelevantFilesTotal={setRelevantFilesTotal}
-                    setFilesAndIndexInfo={setFilesAndIndexInfo}
-                    setSelectedFiles={setSelectedFiles}
-                    setResourcesCount={setResourcesCount}
-                />
+                <OpenFolderButton />
             </div>
 
             <div>
@@ -143,14 +131,6 @@ const FoldersTreePane = function ({
             </div>
         </div>
     );
-};
-FoldersTreePane.propTypes = {
-    setHandleForFolder: PropTypes.func.isRequired,
-    setRelevantFilesCount: PropTypes.func.isRequired,
-    setRelevantFilesTotal: PropTypes.func.isRequired,
-    setFilesAndIndexInfo: PropTypes.func.isRequired,
-    setSelectedFiles: PropTypes.func.isRequired,
-    setResourcesCount: PropTypes.func.isRequired
 };
 
 export { FoldersTreePane };

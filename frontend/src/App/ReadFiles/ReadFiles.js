@@ -1,5 +1,3 @@
-/* global showDirectoryPicker */
-
 import React, { useEffect, useMemo, useState } from 'react';
 import PropTypes from 'prop-types';
 
@@ -38,6 +36,10 @@ import { trackTime } from 'helpmate/dist/misc/trackTime.js';
 
 import { MultiFileOperations } from './MultiFileOperations/MultiFileOperations.js';
 import { BuildIndex } from './BuildIndex/BuildIndex.js';
+
+import { useZustandStore } from '../store/zustandStore.js';
+
+import { selectedFilesAtom } from '../store/jotaiStore.js';
 
 import uc from '../../utility-classes.css';
 import styles from './ReadFiles.css';
@@ -104,8 +106,9 @@ const fuseOptionsAdvanced = {
 
 window.count_VirtuosoExecuteSlowOperation = 0;
 
-const CLEAR_INDEXEDDB = false; // DEV-HELPER
-// const CLEAR_INDEXEDDB = true; // DEV-HELPER
+// DEV-HELPER
+const CLEAR_INDEXEDDB = false;
+// const CLEAR_INDEXEDDB = true; typeof DO_NOT_UNCOMMENT;
 if (CLEAR_INDEXEDDB) {
     clear();
 }
@@ -118,8 +121,6 @@ const getBatchedMemoized = pMemoize(
         cache: cacheMap
     }
 );
-
-const selectedFilesAtom = atom(new Set([]));
 
 const advancedSearchEnabledAtom = atom(false);
 
@@ -596,8 +597,9 @@ const ImageFromAssetFile = ({
 
                 const imageBlob = new Blob([file], { type: file.type });
 
-                const USE_INDEXEDDB = true; // DEV-HELPER
-                // const USE_INDEXEDDB = false; // DEV-HELPER
+                // DEV-HELPER
+                const USE_INDEXEDDB = true;
+                // const USE_INDEXEDDB = false; typeof DO_NOT_UNCOMMENT;
 
                 const idInDbForProps   = `${file.name}:${file.lastModified}:${file.size}:props`;
                 const idInDbForThumbNN = `${file.name}:${file.lastModified}:${file.size}:thumb${thumbSize}`;
@@ -644,7 +646,7 @@ const ImageFromAssetFile = ({
                         }
                     }
                 }
-                // FIXME: "react/prop-types" is getting applied incorrectly here since we set the vatiable name as "props"
+                // FIXME: "react/prop-types" is getting applied incorrectly here since we set the variable name as "props"
                 setDimensions(props.dimensions); // eslint-disable-line react/prop-types
                 setProps(props);
 
@@ -1396,18 +1398,11 @@ const AdvancedSearchOptions = function ({ handleForFolder }) {
 };
 
 const ReadFiles = function () {
-    const [handleForFolder, setHandleForFolder] = useState(null);
-    const [resourcesCount, setResourcesCount] = useState(null);
-    const [relevantHandlesCount, setRelevantFilesCount] = useState(null);
-    const [relevantFilesTotal, setRelevantFilesTotal] = useState(null);
-    const [filesAndIndexInfo, setFilesAndIndexInfo] = useState({
-        handleForFolder: null,
-        filesAndDetails: null,
-        readNames: false,
-        readMetadataFiles: false
-    });
-
-    const [selectedFiles, setSelectedFiles] = useAtom(selectedFilesAtom);
+    const handleForFolder = useZustandStore((state) => state.handleForFolder);
+    const resourcesCount = useZustandStore((state) => state.resourcesCount);
+    const relevantHandlesCount = useZustandStore((state) => state.relevantHandlesCount);
+    const relevantFilesTotal = useZustandStore((state) => state.relevantFilesTotal);
+    const filesAndIndexInfo = useZustandStore((state) => state.filesAndIndexInfo);
 
     const [searchInput, setSearchInput] = useState('');
     const [searchQuery, setSearchQuery] = useState({
@@ -1447,8 +1442,12 @@ const ReadFiles = function () {
                         onChange={(e) => {
                             setSearchInput(e.target.value);
                         }}
-                        onKeyPress={(e) => {
+                        onKeyPress={async (e) => {
                             if (e.key === 'Enter') {
+                                if (advancedSearchEnabled) {
+                                    await loadIndex(filesAndIndexInfo);
+                                }
+
                                 setQueryWithMode();
                             }
                         }}
@@ -1502,14 +1501,7 @@ const ReadFiles = function () {
                             height: '100%'
                         }}
                     >
-                        <FoldersTreePane
-                            setHandleForFolder={setHandleForFolder}
-                            setRelevantFilesCount={setRelevantFilesCount}
-                            setRelevantFilesTotal={setRelevantFilesTotal}
-                            setFilesAndIndexInfo={setFilesAndIndexInfo}
-                            setSelectedFiles={setSelectedFiles}
-                            setResourcesCount={setResourcesCount}
-                        />
+                        <FoldersTreePane />
                     </div>
                 </div>
                 <div>
