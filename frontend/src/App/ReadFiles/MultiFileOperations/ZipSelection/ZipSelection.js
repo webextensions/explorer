@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import PropTypes from 'prop-types';
 
 import { ZipSelectionDialog } from './ZipSelectionDialog.js';
 
@@ -24,6 +25,9 @@ const ZipSelection = ({ selectedFiles }) => {
             />
         </div>
     );
+};
+ZipSelection.propTypes = {
+    selectedFiles: PropTypes.object.isRequired
 };
 
 export { ZipSelection };

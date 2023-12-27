@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import PropTypes from 'prop-types';
 
 import { ResponsiveDialog } from '../../../Components/ResponsiveDialog/ResponsiveDialog.js';
 
@@ -71,6 +72,11 @@ const ZipSelectionDialog = ({
             </div>
         </ResponsiveDialog>
     );
+};
+ZipSelectionDialog.propTypes = {
+    open: PropTypes.bool.isRequired,
+    onClose: PropTypes.func.isRequired,
+    selectedFiles: PropTypes.object.isRequired
 };
 
 export { ZipSelectionDialog };

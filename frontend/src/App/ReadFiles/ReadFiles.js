@@ -4,18 +4,15 @@ import PropTypes from 'prop-types';
 import classNames from 'classnames';
 
 import { Virtuoso } from 'react-virtuoso';
-import ky from 'ky';
 
 import { atom, useAtom } from 'jotai';
 
 import Fuse from 'fuse.js';
 
-import imageCompression from 'browser-image-compression';
-
 import { getImageDimensionsFromBlob } from '../utils/getImageDimensionsFromBlob.js';
 import { getAverageColorFromImageBlob } from '../utils/getAverageColorFromImageBlob.js';
 import {
-    resizeImageBlob,
+    // resizeImageBlob,
     resizeImageBlobAndCropToSize
 } from '../utils/resizeImageBlob.js';
 
@@ -34,28 +31,21 @@ import { humanReadableByteSize } from 'helpmate/dist/misc/humanReadableByteSize.
 
 import { trackTime } from 'helpmate/dist/misc/trackTime.js';
 
-import { MultiFileOperations } from './MultiFileOperations/MultiFileOperations.js';
+import { convertLocalTimeInIsoLikeFormat } from '../utils/convertLocalTimeInIsoLikeFormat.js';
+
 import { BuildIndex } from './BuildIndex/BuildIndex.js';
+
+import { SideViewForFile } from './SideViewForFile/SideViewForFile.js';
+import { createMetadataForImage } from './GenerateMetadataFile/createMetadataForImage.js';
 
 import { useZustandStore } from '../store/zustandStore.js';
 
-import { selectedFilesAtom } from '../store/jotaiStore.js';
-
-import uc from '../../utility-classes.css';
-import styles from './ReadFiles.css';
-
 import {
-    READYSTATE,
+    CurrentDirectoryAtom,
+    selectedFilesAtom
+} from '../store/jotaiStore.js';
 
-    UNINITIALIZED,
-    LOADING,
-    LOADED,
-    ERROR,
-
-    ERROR_CODE,
-    ERROR_CODE_NOT_FOUND,
-    ERROR_CODE_UNKNOWN
-} from './readyStates.js';
+import styles from './ReadFiles.css';
 
 import { FoldersTreePane } from './FoldersTreePane/FoldersTreePane.js';
 
@@ -124,22 +114,6 @@ const getBatchedMemoized = pMemoize(
 
 const advancedSearchEnabledAtom = atom(false);
 
-const convertLocalTimeInIsoLikeFormat = (timestamp, options = {}) => {
-    if (typeof timestamp === 'number') {
-        let localTime = (new Date(timestamp - (new Date()).getTimezoneOffset() * 60 * 1000)).toISOString().substr(0, 19).replace('T', ' ');
-
-        const showTimezone = options.showTimezone;
-        if (showTimezone) {
-            // https://stackoverflow.com/questions/9772955/how-can-i-get-the-timezone-name-in-javascript/44935836#44935836
-            localTime += ' ' + Intl.DateTimeFormat().resolvedOptions().timeZone;
-        }
-
-        return localTime;
-    } else {
-        return 'NA';
-    }
-};
-
 // eslint-disable-next-line no-unused-vars
 const getFile = async function () {
     // Open file picker and destructure the result the first handle
@@ -153,381 +127,6 @@ const timeout = function (ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
 };
 
-const sortAndUniqueStringArray = function (array) {
-    const output = [...new Set(array)].sort();
-    return output;
-};
-
-const createMetadataForImage = async function ({ handleForFolder, imageFile, dimensions }) {
-    try {
-        const metadataFileHandle = (
-            await handleForFolder.getFileHandle(`${imageFile.name}.metadata.json`, { create: true })
-        );
-
-        // Write contents to file
-        const metadata = {
-            name: imageFile.name,
-            type: imageFile.type,
-            size: imageFile.size,
-            dimensions: {
-                width: dimensions.width,
-                height: dimensions.height
-            },
-            lastModified: imageFile.lastModified
-        };
-        const writable = await metadataFileHandle.createWritable();
-        await writable.write(JSON.stringify(metadata, null, 4));
-        await writable.close();
-
-        return [null, metadata];
-    } catch (e) {
-        return [e];
-    }
-};
-
-const GenerateMetadataFile = ({ file, handleForFolder, dimensions, onError, onSuccess }) => {
-    return (
-        <button
-            onClick={async () => {
-                const [err, metadata] = await createMetadataForImage({
-                    handleForFolder,
-                    imageFile: file,
-                    dimensions
-                });
-
-                if (err) {
-                    onError(err);
-                } else {
-                    onSuccess(metadata);
-                }
-            }}
-        >
-            Generate metadata file
-        </button>
-    );
-};
-GenerateMetadataFile.propTypes = {
-    file: PropTypes.object.isRequired,
-    handleForFolder: PropTypes.object.isRequired,
-    dimensions: PropTypes.object.isRequired,
-    onError: PropTypes.func.isRequired,
-    onSuccess: PropTypes.func.isRequired
-};
-
-const BasicEditor = ({ value, saveEnabledByDefault, onEdit, onSave, textareaStyle }) => {
-    const [text, setText] = useState(value);
-    const [isDirty, setIsDirty] = useState(false);
-
-    useEffect(() => {
-        if (saveEnabledByDefault) {
-            setIsDirty(true);
-        }
-    }, [saveEnabledByDefault]);
-
-    const flagEnableSave = isDirty;
-
-    return (
-        <div>
-            <textarea
-                value={text}
-                onChange={(e) => {
-                    setText(e.target.value);
-                    setIsDirty(true);
-                    if (onEdit) {
-                        onEdit(e.target.value);
-                    }
-                }}
-                style={textareaStyle}
-            />
-            <div style={{ display: 'flex' }}>
-                <button
-                    disabled={!flagEnableSave}
-                    onClick={() => {
-                        onSave(text);
-                        setIsDirty(false);
-                    }}
-                >
-                    {flagEnableSave ? 'Save' : 'Saved'}
-                </button>
-                <button
-                    onClick={() => {
-                        const json = JSON.parse(text);
-                        const formattedJson = JSON.stringify(json, null, 4);
-                        if (formattedJson !== text) {
-                            setText(formattedJson);
-                            setIsDirty(true);
-                        }
-                    }}
-                >
-                    Format JSON
-                </button>
-            </div>
-        </div>
-    );
-};
-BasicEditor.propTypes = {
-    value: PropTypes.string.isRequired,
-    saveEnabledByDefault: PropTypes.bool,
-    onEdit: PropTypes.func,
-    onSave: PropTypes.func.isRequired,
-    textareaStyle: PropTypes.object
-};
-
-const MetadataEditor = function ({ handleForFolder, file, json }) {
-    const [tags, setTags] = useState([]);
-    const [tagsRaw, setTagsRaw] = useState([]);
-    const [flagEnableSave, setFlagEnableSave] = useState(false);
-
-    const [editorLastSetAt, setEditorLastSetAt] = useState(0);
-
-    const [jsonVal, setJsonVal] = useState(json);
-
-    return (
-        <div>
-            <BasicEditor
-                key={editorLastSetAt}
-                value={JSON.stringify(jsonVal, null, 4)}
-                textareaStyle={{
-                    width: '100%',
-                    height: '350px'
-                }}
-                saveEnabledByDefault={flagEnableSave}
-                onSave={async (text) => {
-                    const metadataFileHandle = (
-                        await handleForFolder.getFileHandle(
-                            file.name + '.metadata.json',
-                            { create: false }
-                        )
-                    );
-
-                    // Write contents to file
-                    const writable = await metadataFileHandle.createWritable();
-                    await writable.write(text);
-                    await writable.close();
-                }}
-            />
-
-            <div style={{ marginTop: 10, display: 'flex' }}>
-                <button
-                    onClick={async () => {
-                        const imageFile = file;
-                        const imageCompressionOptions = {
-                            maxSizeMB: 0.25,
-                            maxWidthOrHeight: 500,
-                            useWebWorker: true
-                        };
-                        const compressedFile = await imageCompression(imageFile, imageCompressionOptions);
-
-                        const apiUrl = '/api/identifyTags';
-                        const response = await ky.post(apiUrl, {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': file.type
-                            },
-                            timeout: 120000,
-                            retry: 5,
-                            body: compressedFile
-                        });
-                        const json = await response.json();
-
-                        const arrTags = ((json) => {
-                            const data = json.data;
-                            const tags = data;
-                            const arr = [];
-                            for (const tag of tags) {
-                                arr.push(tag.description);
-                            }
-                            return arr;
-                        })(json);
-                        setTags(arrTags);
-                        setTagsRaw(json.data);
-                    }}
-                >
-                    Generate tags
-                </button>
-                <button
-                    onClick={async () => {
-                        const outputJson = JSON.parse(JSON.stringify(jsonVal));
-                        outputJson.tags = [
-                            ...outputJson.tags || [],
-                            ...tags
-                        ];
-                        outputJson.tags = sortAndUniqueStringArray(outputJson.tags);
-
-                        if (Array.isArray(tagsRaw) && tagsRaw.length) {
-                            outputJson.tagsRaw = tagsRaw;
-                        }
-
-                        setJsonVal(outputJson);
-                        setFlagEnableSave(true);
-                        setEditorLastSetAt(Date.now());
-                    }}
-                >
-                    Sync tags to metadata
-                </button>
-            </div>
-            {
-                Array.isArray(tags) &&
-                (
-                    tags.length ?
-                        (
-                            <div style={{ marginTop: 10 }}>
-                                <textarea
-                                    value={JSON.stringify(tags, null, 4)}
-                                    readOnly
-                                    style={{
-                                        width: '100%',
-                                        height: 200
-                                    }}
-                                />
-                            </div>
-                        ) :
-                        null
-                )
-            }
-        </div>
-    );
-};
-MetadataEditor.propTypes = {
-    handleForFolder: PropTypes.object.isRequired,
-    fileHandle: PropTypes.object.isRequired,
-    file: PropTypes.object.isRequired,
-    json: PropTypes.object.isRequired
-};
-
-const MetadataFile = ({
-    file,
-    handleForFolder,
-    dimensions,
-    onLoad
-}) => {
-    const [metadataFileObject, setMetadataFileObject] = useState({
-        [READYSTATE]: UNINITIALIZED,
-        json: null
-    });
-
-    useEffect(() => {
-        (async () => {
-            setMetadataFileObject({
-                [READYSTATE]: LOADING,
-                json: null
-            });
-
-            try {
-                let metadataFileHandle;
-                try {
-                    metadataFileHandle = (
-                        await handleForFolder.getFileHandle(
-                            file.name + '.metadata.json',
-                            { create: false }
-                        )
-                    );
-                } catch (e) {
-                    setMetadataFileObject({
-                        [READYSTATE]: ERROR,
-                        [ERROR_CODE]: ERROR_CODE_NOT_FOUND,
-                        json: null
-                    });
-                    return;
-                }
-
-                const metadataFile = await metadataFileHandle.getFile();
-                const metadataFileContents = await metadataFile.text();
-                const metadataFileJson = (() => {
-                    try {
-                        const json = JSON.parse(metadataFileContents);
-                        return json;
-                    } catch (e) {
-                        if (
-                            typeof metadataFileContents === 'string' &&
-                            metadataFileContents.trim() === ''
-                        ) {
-                            return {};
-                        } else {
-                            return {
-                                oldContent: metadataFileContents
-                            };
-                        }
-                    }
-                })();
-
-                setMetadataFileObject({
-                    [READYSTATE]: LOADED,
-                    json: metadataFileJson
-                });
-
-                if (onLoad) {
-                    onLoad(metadataFileJson);
-                }
-            } catch (e) {
-                console.log(e);
-                setMetadataFileObject({
-                    [READYSTATE]: ERROR,
-                    [ERROR_CODE]: ERROR_CODE_UNKNOWN,
-                    json: null
-                });
-                return;
-            }
-        })();
-    }, [file, handleForFolder]);
-
-    return (
-        <div>
-            {(() => {
-                if (metadataFileObject[READYSTATE] === ERROR) {
-                    if (metadataFileObject[ERROR_CODE] === ERROR_CODE_NOT_FOUND) {
-                        return (
-                            <GenerateMetadataFile
-                                file={file}
-                                handleForFolder={handleForFolder}
-                                dimensions={dimensions}
-                                onError={(e) => {
-                                    console.log(e);
-                                    setMetadataFileObject({
-                                        [READYSTATE]: ERROR,
-                                        [ERROR_CODE]: ERROR_CODE_UNKNOWN,
-                                        json: null
-                                    });
-                                }}
-                                onSuccess={(metadata) => {
-                                    setMetadataFileObject({
-                                        [READYSTATE]: LOADED,
-                                        json: metadata
-                                    });
-                                }}
-                            />
-                        );
-                    } else {
-                        return 'Unexpected Error';
-                    }
-                } else if (metadataFileObject[READYSTATE] === LOADED) {
-                    return (
-                        <MetadataEditor
-                            handleForFolder={handleForFolder}
-                            file={file}
-                            json={metadataFileObject.json}
-                        />
-                    );
-                } else {
-                    return null;
-                }
-            })()}
-        </div>
-    );
-};
-MetadataFile.propTypes = {
-    fileHandle: PropTypes.object.isRequired,
-    file: PropTypes.object.isRequired,
-    handleForFolder: PropTypes.object.isRequired,
-    dimensions: PropTypes.object.isRequired
-};
-
-const getRandomIntInclusive = function (min, max) {
-    min = Math.ceil(min);
-    max = Math.floor(max);
-    return Math.floor(Math.random() * (max - min + 1) + min); // The maximum is inclusive and the minimum is inclusive
-};
-
 const ImageFromAssetFile = ({
     finalList,
     assetFile,
@@ -536,7 +135,7 @@ const ImageFromAssetFile = ({
     const [file, setFile] = useState(null);
     const [imageBlob, setImageBlob] = useState(null);
     const [dimensions, setDimensions] = useState(null);
-    const [props, setProps] = useState(null);
+    const [fileProps, setFileProps] = useState(null);
 
     const [metadataFileObject, setMetadataFileObject] = useState({
         status: null,
@@ -648,7 +247,7 @@ const ImageFromAssetFile = ({
                 }
                 // FIXME: "react/prop-types" is getting applied incorrectly here since we set the variable name as "props"
                 setDimensions(props.dimensions); // eslint-disable-line react/prop-types
-                setProps(props);
+                setFileProps(props);
 
                 let thumbNN;
                 if (USE_INDEXEDDB) {
@@ -758,16 +357,16 @@ const ImageFromAssetFile = ({
                     display: 'grid',
                     placeItems: 'center',
                     backgroundColor: (() => {
-                        if (!props || !props.averageColor) {
+                        if (!fileProps || !fileProps.averageColor) {
                             return '#fff';
                         }
                         /* eslint-disable @stylistic/indent */
                         return ([
                             'rgba(',
-                                props.averageColor.red, ',',
-                                props.averageColor.green, ',',
-                                props.averageColor.blue, ',',
-                                props.averageColor.alpha,
+                                fileProps.averageColor.red, ',',
+                                fileProps.averageColor.green, ',',
+                                fileProps.averageColor.blue, ',',
+                                fileProps.averageColor.alpha,
                             ')'
                         ].join(''));
                         /* eslint-enable @stylistic/indent */
@@ -890,6 +489,7 @@ const ImageFromAssetFile = ({
     );
 };
 ImageFromAssetFile.propTypes = {
+    finalList: PropTypes.array.isRequired,
     assetFile: PropTypes.object.isRequired,
     handleForFolder: PropTypes.object.isRequired
 };
@@ -943,16 +543,60 @@ const sortFnByPropertyPath = function (propertyPath, options = {}) {
     };
 };
 
+const ResourcesCountInStatusBar = function () {
+    const resourcesCount = useZustandStore((state) => state.resourcesCount);
+
+    return (resourcesCount === null ? 'Not loaded' : resourcesCount);
+};
+
+const ImagesCountInStatusBar = function () {
+    const relevantHandlesCount = useZustandStore((state) => state.relevantHandlesCount);
+    const relevantFilesTotal = useZustandStore((state) => state.relevantFilesTotal);
+
+    if (relevantHandlesCount === null) {
+        return null;
+    } else {
+        return (
+            <span>
+                {' ; '}
+                Images: {relevantHandlesCount}/{relevantFilesTotal}
+            </span>
+        );
+    }
+};
+
+const FilesListStatusBar = function () {
+    return (
+        <div
+            style={{
+                display: 'flex',
+                height: 34,
+                padding: '5px 10px',
+                backgroundColor: '#eee'
+            }}
+        >
+            <div style={{ lineHeight: '24px' }}>
+                Resources: <ResourcesCountInStatusBar />
+            </div>
+            <div style={{ lineHeight: '24px' }}>
+                <ImagesCountInStatusBar />
+            </div>
+        </div>
+    );
+};
+
 const ShowImagesWrapper = function ({
-    handleForFolder,
-    filesAndIndexInfo,
-    searchQuery,
-    resourcesCount,
-    relevantHandlesCount,
-    relevantFilesTotal
+    searchQuery
 }) {
+    // eslint-disable-next-line no-unused-vars
+    const [currentDirectoryAtom, setCurrentDirectoryAtom] = useAtom(CurrentDirectoryAtom);
+    const handleForFolder = currentDirectoryAtom;
+
+    const filesAndIndexInfo = useZustandStore((state) => state.filesAndIndexInfo);
+
     const [sortBy, setSortBy] = useState(null);
 
+    // eslint-disable-next-line no-unused-vars
     const [advancedSearchEnabled, setAdvancedSearchEnabled] = useAtom(advancedSearchEnabledAtom);
 
     const clonedFilesAndIndexInfo = useMemo(() => {
@@ -1106,7 +750,7 @@ const ShowImagesWrapper = function ({
                     itemContent={(index, fileAndDetails) => {
                         const file = fileAndDetails.file;
                         const fileName = file.name;
-                        const details = fileAndDetails.details;
+                        // const details = fileAndDetails.details;
                         return (
                             <ImageFromAssetFile
                                 key={fileName}
@@ -1119,185 +763,13 @@ const ShowImagesWrapper = function ({
                 />
             </div>
             <div>
-                <div
-                    style={{
-                        display: 'flex',
-                        height: 34,
-                        padding: '5px 10px',
-                        backgroundColor: '#eee'
-                    }}
-                >
-                    <div style={{ lineHeight: '24px' }}>
-                        Resources: {
-                            resourcesCount === null ? 'Not loaded' : resourcesCount
-                        }
-                    </div>
-                    <div style={{ lineHeight: '24px' }}>
-                        {(() => {
-                            if (relevantHandlesCount === null) {
-                                return null;
-                            } else {
-                                return (
-                                    <span>
-                                        {' ; '}
-                                        Images: {relevantHandlesCount}/{relevantFilesTotal}
-                                    </span>
-                                );
-                            }
-                        })()}
-                    </div>
-                </div>
+                <FilesListStatusBar />
             </div>
         </div>
     );
 };
 ShowImagesWrapper.propTypes = {
-    handleForFolder: PropTypes.object,
-    files: PropTypes.array.isRequired // TODO: Or null
-};
-
-const SideViewForFile = function ({ handleForFolder }) {
-    const [selectedFiles] = useAtom(selectedFilesAtom);
-
-    const [dimensions, setDimensions] = useState(null);
-
-    const [backgroundColor, setBackgroundColor] = useState('#fff');
-
-    if (selectedFiles.size === 0) {
-        return (
-            <div className={classNames(uc.italic, uc.color_777, uc.textAlignCenter)}>
-                No file selected
-            </div>
-        );
-    } else if (selectedFiles.size >= 2) {
-        return (
-            <div style={{ padding: '20px 10px' }}>
-                <div className={classNames(uc.italic, uc.color_777, uc.textAlignCenter)}>
-                    {selectedFiles.size} files selected
-                </div>
-
-                <div style={{ marginTop: 10 }}>
-                    <div>
-                        <MultiFileOperations
-                            selectedFiles={selectedFiles}
-                            handleForFolder={handleForFolder}
-                        />
-                    </div>
-                </div>
-            </div>
-        );
-    } else {
-        let selectedFile;
-        for (const item of selectedFiles) {
-            selectedFile = item;
-            break; // Get the first element encountered and exit loop
-        }
-
-        const blob = new Blob([selectedFile], { type: selectedFile.type });
-        const url = URL.createObjectURL(blob);
-
-        return (
-            <div style={{ margin: 10 }}>
-                <div style={{ display: 'grid' }}>
-                    <div
-                        style={{
-                            margin: 'auto'
-                        }}
-                    >
-                        <div
-                            style={{ borderRadius: 10, overflow: 'hidden' }}
-                        >
-                            <div
-                                style={{
-                                    width: 230,
-                                    height: 230,
-                                    display: 'grid',
-                                    backgroundColor,
-
-                                    // alignItems: 'center',
-                                    // justifyItems: 'center',
-                                    placeItems: 'center'
-                                }}
-                            >
-                                <img
-                                    src={url}
-                                    style={{
-                                        maxWidth: 230,
-                                        maxHeight: 230
-                                    }}
-                                    onLoad={function (img) {
-                                        // URL.revokeObjectURL(url);
-
-                                        const loadedDimensions = {
-                                            width: img.target.naturalWidth,
-                                            height: img.target.naturalHeight
-                                        };
-
-                                        // FIXME: Use a better approach to compare objects (or at least use something like json-stable-stringify)
-                                        if (JSON.stringify(dimensions) !== JSON.stringify(loadedDimensions)) {
-                                            setDimensions(loadedDimensions);
-                                        }
-                                    }}
-                                />
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div style={{ marginTop: 10 }}>
-                    <div>
-                        Name: {selectedFile.name}
-                    </div>
-                    <div>
-                        Type: {selectedFile.type}
-                    </div>
-                    <div>
-                        Size: {humanReadableByteSize(selectedFile.size)}
-                    </div>
-                    <div>
-                        Last modified: {
-                            convertLocalTimeInIsoLikeFormat(selectedFile.lastModified)
-                        }
-                    </div>
-                    <div style={{ marginTop: 10 }}>
-                        <div>
-                            Metadata:
-                        </div>
-                        <div>
-                            {
-                                dimensions && // Wait for "dimensions" to be setup
-                                <MetadataFile
-                                    fileHandle={selectedFile}
-                                    file={selectedFile}
-                                    handleForFolder={handleForFolder}
-                                    dimensions={dimensions}
-                                    onLoad={function (metadata) {
-                                        const { averageColor } = metadata;
-                                        if (averageColor) {
-                                            /* eslint-disable @stylistic/indent */
-                                            const colorValue = [
-                                                'rgba(',
-                                                    averageColor.red, ', ',
-                                                    averageColor.green, ', ',
-                                                    averageColor.blue, ', ',
-                                                    averageColor.alpha,
-                                                ')'
-                                            ].join('');
-                                            /* eslint-enable @stylistic/indent */
-
-                                            setBackgroundColor(colorValue);
-                                        }
-                                    }}
-                                />
-                            }
-                        </div>
-                    </div>
-                </div>
-            </div>
-        );
-    }
-};
-SideViewForFile.propTypes = {
-    handleForFolder: PropTypes.object.isRequired
+    searchQuery: PropTypes.object.isRequired
 };
 
 const loadMetadataFiles = async function (filesAndIndexInfo) {
@@ -1351,7 +823,10 @@ const loadIndex = async function (filesAndIndexInfo) {
     }
 };
 
-const AdvancedSearchOptions = function ({ handleForFolder }) {
+const AdvancedSearchOptions = function () {
+    // eslint-disable-next-line no-unused-vars
+    const [currentDirectoryAtom, setCurrentDirectoryAtom] = useAtom(CurrentDirectoryAtom);
+    const handleForFolder = currentDirectoryAtom;
     const [advancedSearchEnabled, setAdvancedSearchEnabled] = useAtom(advancedSearchEnabledAtom);
 
     const checkboxEnabled = !!handleForFolder;
@@ -1398,11 +873,17 @@ const AdvancedSearchOptions = function ({ handleForFolder }) {
 };
 
 const ReadFiles = function () {
-    const handleForFolder = useZustandStore((state) => state.handleForFolder);
-    const resourcesCount = useZustandStore((state) => state.resourcesCount);
-    const relevantHandlesCount = useZustandStore((state) => state.relevantHandlesCount);
-    const relevantFilesTotal = useZustandStore((state) => state.relevantFilesTotal);
+    // eslint-disable-next-line no-unused-vars
+    const [currentDirectoryAtom, setCurrentDirectoryAtom] = useAtom(CurrentDirectoryAtom);
+
     const filesAndIndexInfo = useZustandStore((state) => state.filesAndIndexInfo);
+
+    const setRelevantHandlesCount = useZustandStore((state) => state.setRelevantHandlesCount);
+    const setRelevantFilesTotal = useZustandStore((state) => state.setRelevantFilesTotal);
+    const setFilesAndIndexInfo = useZustandStore((state) => state.setFilesAndIndexInfo);
+    // eslint-disable-next-line no-unused-vars
+    const [selectedFiles, setSelectedFiles] = useAtom(selectedFilesAtom);
+    const setResourcesCount = useZustandStore((state) => state.setResourcesCount);
 
     const [searchInput, setSearchInput] = useState('');
     const [searchQuery, setSearchQuery] = useState({
@@ -1410,6 +891,7 @@ const ReadFiles = function () {
         query: null
     });
 
+    // eslint-disable-next-line no-unused-vars
     const [advancedSearchEnabled, setAdvancedSearchEnabled] = useAtom(advancedSearchEnabledAtom);
 
     const setQueryWithMode = function () {
@@ -1425,6 +907,70 @@ const ReadFiles = function () {
             query
         });
     };
+
+    useEffect(() => {
+        if (!currentDirectoryAtom) {
+            return;
+        }
+
+        setRelevantHandlesCount(null);
+        setRelevantFilesTotal(null);
+        setFilesAndIndexInfo({
+            handleForFolder: null,
+            filesAndDetails: null,
+            readNames: false,
+            readMetadataFiles: false
+        });
+        setSelectedFiles(new Set([]));
+
+        // Get handles for all the files
+        const handles = [];
+        let index = 0;
+        setResourcesCount(index);
+
+        (async () => {
+            // const iterator = dirHandle.values();
+            const iterator = currentDirectoryAtom.values();
+            while (true) { // eslint-disable-line no-constant-condition
+                const response = await iterator.next();
+                if (response.done) {
+                    break;
+                }
+                const entry = response.value;
+                index++;
+                setResourcesCount(index);
+                if (
+                    entry.name.endsWith('.jpeg') ||
+                    entry.name.endsWith('.jpg')  ||
+                    entry.name.endsWith('.png')  ||
+                    entry.name.endsWith('.svg')
+                ) {
+                    handles.push(entry);
+                }
+            }
+
+            setRelevantFilesTotal(handles.length);
+            (async () => {
+                const filesAndDetails = [];
+                for (const handle of handles) {
+                    const file = await handle.getFile();
+                    filesAndDetails.push({
+                        fileHandle: handle,
+                        file,
+                        details: {}
+                    });
+
+                    setRelevantHandlesCount(filesAndDetails.length);
+                }
+                setFilesAndIndexInfo({
+                    handleForFolder: currentDirectoryAtom,
+                    filesAndDetails,
+                    readNames: true,
+                    readMetadataFiles: false
+                });
+            })();
+        })();
+    }, [currentDirectoryAtom]);
 
     return (
         <div
@@ -1458,7 +1004,7 @@ const ReadFiles = function () {
                             cursor: 'pointer',
                             marginLeft: 10
                         }}
-                        disabled={!handleForFolder}
+                        disabled={!currentDirectoryAtom}
                         onClick={async () => {
                             if (advancedSearchEnabled) {
                                 await loadIndex(filesAndIndexInfo);
@@ -1473,9 +1019,7 @@ const ReadFiles = function () {
             </div>
 
             <div style={{ marginTop: 5, marginBottom: 15 }}>
-                <AdvancedSearchOptions
-                    handleForFolder={handleForFolder}
-                />
+                <AdvancedSearchOptions />
             </div>
 
             <div
@@ -1487,7 +1031,7 @@ const ReadFiles = function () {
             >
                 <div
                     style={{
-                        width: 152,
+                        width: 202,
                         overflow: 'hidden',
                         border: '1px solid #ccc',
                         borderRadius: 10
@@ -1506,12 +1050,9 @@ const ReadFiles = function () {
                 </div>
                 <div>
                     <ShowImagesWrapper
-                        handleForFolder={handleForFolder}
+                        handleForFolder={currentDirectoryAtom}
                         filesAndIndexInfo={filesAndIndexInfo}
                         searchQuery={searchQuery}
-                        resourcesCount={resourcesCount}
-                        relevantHandlesCount={relevantHandlesCount}
-                        relevantFilesTotal={relevantFilesTotal}
                     />
                 </div>
                 <div
@@ -1530,7 +1071,7 @@ const ReadFiles = function () {
                             height: '100%'
                         }}
                     >
-                        <SideViewForFile handleForFolder={handleForFolder} />
+                        <SideViewForFile handleForFolder={currentDirectoryAtom} />
                     </div>
                 </div>
             </div>

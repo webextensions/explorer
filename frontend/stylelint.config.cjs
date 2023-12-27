@@ -1,5 +1,6 @@
 /* eslint-disable filenames/match-exported */
-/* eslint-disable quotes */
+/* eslint-disable @stylistic/quotes */
+/* eslint-disable @stylistic/quote-props */
 
 const stylelintConfig = {
     "extends": [
@@ -12,6 +13,7 @@ const stylelintConfig = {
     ],
 
     "rules": {
+        "block-no-empty": ["null"],
         "color-named": "never",
         "declaration-property-value-no-unknown": true,
         "font-family-name-quotes": ["always-where-recommended"],

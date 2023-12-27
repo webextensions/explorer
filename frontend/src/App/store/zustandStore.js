@@ -1,19 +1,9 @@
 import { create } from 'zustand';
 
 const useZustandStore = create((set) => ({
-    handleForFolder: null,
-    setHandleForFolder: (handleForFolder) => {
-        set({ handleForFolder });
-    },
-
     relevantHandlesCount: null,
     setRelevantHandlesCount: (relevantHandlesCount) => {
         set({ relevantHandlesCount });
-    },
-
-    relevantFilesCount: null,
-    setRelevantFilesCount: (relevantFilesCount) => {
-        set({ relevantFilesCount });
     },
 
     relevantFilesTotal: null,

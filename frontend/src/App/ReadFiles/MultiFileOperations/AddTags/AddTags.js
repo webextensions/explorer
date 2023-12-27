@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import PropTypes from 'prop-types';
 
 import { AddTagsDialog } from './AddTagsDialog.js';
 
@@ -25,6 +26,10 @@ const AddTags = ({ handleForFolder, selectedFiles }) => {
             />
         </div>
     );
+};
+AddTags.propTypes = {
+    handleForFolder: PropTypes.object.isRequired,
+    selectedFiles: PropTypes.object.isRequired
 };
 
 export { AddTags };

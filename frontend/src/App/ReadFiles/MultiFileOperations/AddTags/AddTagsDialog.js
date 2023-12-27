@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import PropTypes from 'prop-types';
 
 import {
     tryCatchSafe,
@@ -12,8 +13,8 @@ import styles from './AddTagsDialog.css';
 const addTagsToFiles = async ({
     handleForFolder,
     files,
-    tags,
-    onProgress
+    tags
+    // onProgress
 }) => {
     const arrListOfFileNames = [];
     for (const fileHandle of files) {
@@ -126,13 +127,14 @@ const AddTagsDialog = ({
                                 });
                                 tags = tags.filter((x) => x);
 
+                                // eslint-disable-next-line no-unused-vars
                                 const status = await addTagsToFiles({
                                     handleForFolder,
                                     files: selectedFiles,
-                                    tags,
-                                    onProgress: (progress) => {
-                                        console.log('progress', progress);
-                                    }
+                                    tags
+                                    // onProgress: (progress) => {
+                                    //     console.log('progress', progress);
+                                    // }
                                 });
 
                                 setProcessOngoing(false);
@@ -145,6 +147,12 @@ const AddTagsDialog = ({
             </div>
         </ResponsiveDialog>
     );
+};
+AddTagsDialog.propTypes = {
+    open: PropTypes.bool.isRequired,
+    onClose: PropTypes.func.isRequired,
+    handleForFolder: PropTypes.object.isRequired,
+    selectedFiles: PropTypes.object.isRequired
 };
 
 export { AddTagsDialog };

@@ -1,4 +1,6 @@
 import React from 'react';
+import PropTypes from 'prop-types';
+
 import { ZipSelection } from './ZipSelection/ZipSelection.js';
 import { AddTags } from './AddTags/AddTags.js';
 
@@ -43,6 +45,10 @@ const MultiFileOperations = ({ handleForFolder, selectedFiles }) => {
             </div>
         </div>
     );
+};
+MultiFileOperations.propTypes = {
+    handleForFolder: PropTypes.object.isRequired,
+    selectedFiles: PropTypes.object.isRequired
 };
 
 export { MultiFileOperations };

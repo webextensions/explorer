@@ -1,4 +1,5 @@
 import React, { Fragment, useState } from 'react';
+import PropTypes from 'prop-types';
 
 import imageCompression from 'browser-image-compression';
 import ky from 'ky';
@@ -316,6 +317,7 @@ const BuildIndex = function ({ handleForFolder }) {
             onClick: async function () {
                 setProgressStatus(null);
 
+                // eslint-disable-next-line no-unused-vars
                 const [err] = await buildIndex({
                     handleForFolder,
                     skipWhereMetadataFileAlreadyExists: true,
@@ -344,6 +346,7 @@ const BuildIndex = function ({ handleForFolder }) {
             onClick: async function () {
                 setProgressStatus(null);
 
+                // eslint-disable-next-line no-unused-vars
                 const [err] = await buildIndex({
                     handleForFolder,
                     skipWhereMetadataFileAlreadyExists: false,
@@ -404,6 +407,9 @@ const BuildIndex = function ({ handleForFolder }) {
             }
         </div>
     );
+};
+BuildIndex.propTypes = {
+    handleForFolder: PropTypes.object.isRequired
 };
 
 export { BuildIndex };

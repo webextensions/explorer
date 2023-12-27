@@ -59,7 +59,7 @@ const config = {
                                 auto: function (resourcePath) {
                                     if (
                                         // TODO: FIXME: Create a separate "vendor.css" or similarly named file
-                                        resourcePath.indexOf('frontend/node_modules/') >= 0
+                                        resourcePath.indexOf('/node_modules/') >= 0
                                     ) {
                                         return false;
                                     } else {

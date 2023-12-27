@@ -5,31 +5,151 @@ import PropTypes from 'prop-types';
 
 import { useAtom } from 'jotai';
 
-import { useZustandStore } from '../../store/zustandStore.js';
+import Tree from 'rc-tree';
 
-import { selectedFilesAtom } from '../../store/jotaiStore.js';
+import {
+    RootDirectoryAtom,
+    CurrentDirectoryAtom,
+    WorkspaceDirectoriesAtom
+} from '../../store/jotaiStore.js';
 
-const TreeView = function () {
+import 'rc-tree/assets/index.css';
+
+const containsDirectoryAsChild = async function (directoryHandle) {
+    for await (const entry of directoryHandle.values()) {
+        if (entry.kind === 'directory') {
+            return true;
+        }
+    }
+    return false;
+};
+
+const DirectoryTree = function ({ directoryHandle }) {
+    // eslint-disable-next-line no-unused-vars
+    const [directoryEntries, setDirectoryEntries] = React.useState([]);
+
+    const [treeData, setTreeData] = React.useState([]);
+
+    // eslint-disable-next-line no-unused-vars
+    const [currentDirectoryAtom, setCurrentDirectoryAtom] = useAtom(CurrentDirectoryAtom);
+
+    React.useEffect(() => {
+        (async () => {
+            const entries = [];
+            const treeEntries = [];
+            const rootFolderEntry = {
+                title: directoryHandle.name,
+                key: directoryHandle.name,
+                children: [],
+                isLeaf: !(await containsDirectoryAsChild(directoryHandle)),
+                directoryHandle
+            };
+            treeEntries.push(rootFolderEntry);
+            for await (const entry of directoryHandle.values()) {
+                if (entry.kind === 'directory') {
+                    entries.push(entry);
+
+                    const treeEntry = {
+                        title: entry.name,
+                        key: entry.name,
+                        children: [],
+                        isLeaf: !(await containsDirectoryAsChild(entry)),
+                        directoryHandle: entry
+                    };
+                    rootFolderEntry.children.push(treeEntry);
+                }
+            }
+            setDirectoryEntries(entries);
+
+            setTreeData(treeEntries);
+        })();
+    }, [directoryHandle]);
+
+    const defaultExpandedKeys = (() => {
+        if (treeData.length) {
+            return [treeData[0].key];
+        } else {
+            return [];
+        }
+    })();
+
     return (
         <div>
-            TreeView
+            <Tree
+                // TODO: FIXME: This is a hack to force the tree to re-render when the directoryHandle changes (and related data gets populated to eventually set `defaultExpandedKeys` with a value)
+                key={(defaultExpandedKeys.length && defaultExpandedKeys[0]) || Math.random()}
+                defaultExpandedKeys={defaultExpandedKeys}
+
+                onSelect={function (entry, evt) {
+                    const selectedNodes = evt.selectedNodes;
+
+                    if (selectedNodes.length) {
+                        const selectedNode = selectedNodes[0];
+                        const directoryHandle = selectedNode.directoryHandle;
+                        setCurrentDirectoryAtom(directoryHandle);
+                    } else {
+                        setCurrentDirectoryAtom(null);
+                    }
+                }}
+                loadData={async function (treeEntry) {
+                    const entries = [];
+                    for await (const entry of treeEntry.directoryHandle.values()) {
+                        if (entry.kind === 'directory') {
+                            console.log(entry);
+                            entries.push(entry);
+                        }
+                    }
+                    setDirectoryEntries(entries);
+
+                    const treeEntries = structuredClone(treeData);
+
+                    /* TODO: Pending */
+
+                    setTreeData(treeEntries);
+                }}
+                treeData={treeData}
+            />
+        </div>
+    );
+};
+DirectoryTree.propTypes = {
+    directoryHandle: PropTypes.object.isRequired
+};
+
+const TreeView = function () {
+    // eslint-disable-next-line no-unused-vars
+    const [workspaceDirectoriesAtom, setWorkspaceDirectoriesAtom] = useAtom(WorkspaceDirectoriesAtom);
+
+    return (
+        <div
+            style={{
+                display: 'grid',
+                gap: 10
+            }}
+        >
+            {workspaceDirectoriesAtom.map((workspaceDirectoryHandle, workspaceDirectoryHandleIndex) => {
+                return (
+                    <div key={workspaceDirectoryHandleIndex}>
+                        <DirectoryTree directoryHandle={workspaceDirectoryHandle} />
+                    </div>
+                );
+            })}
         </div>
     );
 };
 
 const OpenFolderButton = function () {
-    const setHandleForFolder = useZustandStore((state) => state.setHandleForFolder);
-    const setRelevantFilesCount = useZustandStore((state) => state.setRelevantFilesCount);
-    const setRelevantFilesTotal = useZustandStore((state) => state.setRelevantFilesTotal);
-    const setFilesAndIndexInfo = useZustandStore((state) => state.setFilesAndIndexInfo);
-    const [selectedFiles, setSelectedFiles] = useAtom(selectedFilesAtom);
-    const setResourcesCount = useZustandStore((state) => state.setResourcesCount);
+    // eslint-disable-next-line no-unused-vars
+    const [rootDirectoryAtom, setRootDirectoryAtom] = useAtom(RootDirectoryAtom);
+
+    const [workspaceDirectoriesAtom, setWorkspaceDirectoriesAtom] = useAtom(WorkspaceDirectoriesAtom);
 
     return (
-        <div>
+        <div style={{ display: 'flex', justifyContent: 'center' }}>
             <button
                 style={{
-                    cursor: 'pointer'
+                    cursor: 'pointer',
+                    padding: '5px 10px'
                 }}
                 onClick={async () => {
                     let dirHandle = null;
@@ -44,79 +164,26 @@ const OpenFolderButton = function () {
                         alert('An error occurred.\n\nPlease check the console for more details.');
                         return;
                     }
-                    setHandleForFolder(dirHandle);
-                    setRelevantFilesCount(null);
-                    setRelevantFilesTotal(null);
-                    setFilesAndIndexInfo({
-                        handleForFolder: null,
-                        filesAndDetails: null,
-                        readNames: false,
-                        readMetadataFiles: false
-                    });
-                    setSelectedFiles(new Set([]));
 
-                    // Get handles for all the files
-                    const handles = [];
-                    let index = 0;
-                    setResourcesCount(index);
-                    const iterator = dirHandle.values();
-                    while (true) { // eslint-disable-line no-constant-condition
-                        const response = await iterator.next();
-                        if (response.done) {
-                            break;
-                        }
-                        const entry = response.value;
-                        index++;
-                        setResourcesCount(index);
-                        if (
-                            entry.name.endsWith('.jpeg') ||
-                            entry.name.endsWith('.jpg')  ||
-                            entry.name.endsWith('.png')  ||
-                            entry.name.endsWith('.svg')
-                        ) {
-                            handles.push(entry);
-                        }
-                    }
+                    setRootDirectoryAtom(dirHandle);
 
-                    setRelevantFilesTotal(handles.length);
-                    (async () => {
-                        const filesAndDetails = [];
-                        for (const handle of handles) {
-                            const file = await handle.getFile();
-                            filesAndDetails.push({
-                                fileHandle: handle,
-                                file,
-                                details: {}
-                            });
-
-                            setRelevantFilesCount(filesAndDetails.length);
-                        }
-                        setFilesAndIndexInfo({
-                            handleForFolder: dirHandle,
-                            filesAndDetails,
-                            readNames: true,
-                            readMetadataFiles: false
-                        });
-                    })();
+                    const workspaceDirectoryHandle = dirHandle;
+                    setWorkspaceDirectoriesAtom([
+                        ...workspaceDirectoriesAtom,
+                        workspaceDirectoryHandle
+                    ]);
                 }}
             >
-                <div>
+                <span>
                     Open Folder
-                </div>
-                <div style={{ color: '#999' }}>
+                </span>
+                &nbsp;
+                <span style={{ color: '#999' }}>
                     (from disk)
-                </div>
+                </span>
             </button>
         </div>
     );
-};
-OpenFolderButton.propTypes = {
-    setHandleForFolder: PropTypes.func.isRequired,
-    setRelevantFilesCount: PropTypes.func.isRequired,
-    setRelevantFilesTotal: PropTypes.func.isRequired,
-    setFilesAndIndexInfo: PropTypes.func.isRequired,
-    setSelectedFiles: PropTypes.func.isRequired,
-    setResourcesCount: PropTypes.func.isRequired
 };
 
 const FoldersTreePane = function () {
@@ -126,7 +193,7 @@ const FoldersTreePane = function () {
                 <OpenFolderButton />
             </div>
 
-            <div>
+            <div style={{ marginTop: 15 }}>
                 <TreeView />
             </div>
         </div>
