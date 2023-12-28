@@ -45,7 +45,7 @@ import {
     selectedFilesAtom
 } from '../store/jotaiStore.js';
 
-import { FilesListTabPanel } from './FilesListTabPanel/FilesListTabPanel.js';
+// import { FilesListTabPanel } from './FilesListTabPanel/FilesListTabPanel.js';
 
 import styles from './ReadFiles.css';
 
