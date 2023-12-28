@@ -197,9 +197,11 @@ const buildIndex = async function ({
 
                 if (digFurther) {
                     if (
+                        file.type === 'image/gif'     ||
                         file.type === 'image/jpeg'    ||
                         file.type === 'image/png'     ||
-                        file.type === 'image/svg+xml'
+                        file.type === 'image/svg+xml' ||
+                        file.type === 'image/webp'
                     ) {
                         const imageBlob = new Blob([file], { type: file.type });
 

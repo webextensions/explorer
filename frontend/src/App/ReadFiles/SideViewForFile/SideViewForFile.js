@@ -357,7 +357,14 @@ const SideViewForFile = function ({ handleForFolder }) {
 
     if (selectedFiles.size === 0) {
         return (
-            <div className={classNames(uc.italic, uc.color_777, uc.textAlignCenter)}>
+            <div
+                className={classNames(uc.italic, uc.color_777, uc.textAlignCenter)}
+                style={{
+                    height: '100%',
+                    display: 'grid',
+                    placeItems: 'center'
+                }}
+            >
                 No file selected
             </div>
         );
@@ -397,7 +404,10 @@ const SideViewForFile = function ({ handleForFolder }) {
                         }}
                     >
                         <div
-                            style={{ borderRadius: 10, overflow: 'hidden' }}
+                            style={{
+                                // borderRadius: 10,
+                                overflow: 'hidden'
+                            }}
                         >
                             <div
                                 style={{

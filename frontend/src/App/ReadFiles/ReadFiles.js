@@ -45,6 +45,8 @@ import {
     selectedFilesAtom
 } from '../store/jotaiStore.js';
 
+import { FilesListTabPanel } from './FilesListTabPanel/FilesListTabPanel.js';
+
 import styles from './ReadFiles.css';
 
 import { FoldersTreePane } from './FoldersTreePane/FoldersTreePane.js';
@@ -690,7 +692,7 @@ const ShowImagesWrapper = function ({
                 width: 830,
                 height: '100%',
                 border: '1px solid #ccc',
-                borderRadius: 10,
+                // borderRadius: 10,
                 overflow: 'hidden'
             }}
         >
@@ -700,6 +702,7 @@ const ShowImagesWrapper = function ({
                 </div>
                 <div
                     className={classNames(styles.cell, styles.fileName, 'bold')}
+                    style={{ cursor: 'pointer' }}
                     onClick={() => {
                         applySortByUpdate('name');
                     }}
@@ -708,6 +711,7 @@ const ShowImagesWrapper = function ({
                 </div>
                 <div
                     className={classNames(styles.cell, styles.fileType, 'bold')}
+                    style={{ cursor: 'pointer' }}
                     onClick={() => {
                         applySortByUpdate('type');
                     }}
@@ -716,6 +720,7 @@ const ShowImagesWrapper = function ({
                 </div>
                 <div
                     className={classNames(styles.cell, styles.fileSize)}
+                    style={{ cursor: 'pointer' }}
                     onClick={() => {
                         applySortByUpdate('size');
                     }}
@@ -727,6 +732,7 @@ const ShowImagesWrapper = function ({
                 </div>
                 <div
                     className={classNames(styles.cell, styles.fileLastModified)}
+                    style={{ cursor: 'pointer' }}
                     onClick={() => {
                         applySortByUpdate('lastModified');
                     }}
@@ -833,7 +839,7 @@ const AdvancedSearchOptions = function () {
     return (
         <div>
             <div>
-                <label style={{ display: 'flex' }}>
+                <label style={{ display: 'inline-flex', cursor: 'pointer' }}>
                     <div>
                         <input
                             type="checkbox"
@@ -940,10 +946,12 @@ const ReadFiles = function () {
                 index++;
                 setResourcesCount(index);
                 if (
+                    entry.name.endsWith('.gif')  ||
                     entry.name.endsWith('.jpeg') ||
                     entry.name.endsWith('.jpg')  ||
                     entry.name.endsWith('.png')  ||
-                    entry.name.endsWith('.svg')
+                    entry.name.endsWith('.svg')  ||
+                    entry.name.endsWith('.webp')
                 ) {
                     handles.push(entry);
                 }
@@ -1025,7 +1033,8 @@ const ReadFiles = function () {
             <div
                 style={{
                     display: 'grid',
-                    gridTemplateColumns: 'auto auto auto',
+                    gridTemplateColumns: 'auto auto',
+                    gridTemplateRows: 'minmax(0, 1fr)',
                     columnGap: 15
                 }}
             >
@@ -1033,8 +1042,8 @@ const ReadFiles = function () {
                     style={{
                         width: 202,
                         overflow: 'hidden',
-                        border: '1px solid #ccc',
-                        borderRadius: 10
+                        border: '1px solid #ccc'
+                        // borderRadius: 10
                     }}
                 >
                     <div
@@ -1048,30 +1057,44 @@ const ReadFiles = function () {
                         <FoldersTreePane />
                     </div>
                 </div>
-                <div>
-                    <ShowImagesWrapper
-                        handleForFolder={currentDirectoryAtom}
-                        filesAndIndexInfo={filesAndIndexInfo}
-                        searchQuery={searchQuery}
-                    />
-                </div>
+
                 <div
                     style={{
-                        border: '1px solid #ccc',
-                        borderRadius: 10,
-                        overflow: 'hidden',
-                        width: 352
+                        display: 'grid',
+                        gridTemplateRows: 'auto minmax(0, 1fr)'
                     }}
                 >
-                    <div
-                        style={{
-                            overflowY: 'scroll',
-                            // overflowY: 'auto',
+                    <div>
+                        {/* // TODO: Pending */}
+                        {/* <FilesListTabPanel /> */}
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'auto auto', columnGap: 15 }}>
+                        <div>
+                            <ShowImagesWrapper
+                                handleForFolder={currentDirectoryAtom}
+                                filesAndIndexInfo={filesAndIndexInfo}
+                                searchQuery={searchQuery}
+                            />
+                        </div>
+                        <div
+                            style={{
+                                border: '1px solid #ccc',
+                                // borderRadius: 10,
+                                overflow: 'hidden',
+                                width: 352
+                            }}
+                        >
+                            <div
+                                style={{
+                                    overflowY: 'scroll',
+                                    // overflowY: 'auto',
 
-                            height: '100%'
-                        }}
-                    >
-                        <SideViewForFile handleForFolder={currentDirectoryAtom} />
+                                    height: '100%'
+                                }}
+                            >
+                                <SideViewForFile handleForFolder={currentDirectoryAtom} />
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>

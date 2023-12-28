@@ -13,7 +13,7 @@ const stylelintConfig = {
     ],
 
     "rules": {
-        "block-no-empty": ["null"],
+        "block-no-empty": null,
         "color-named": "never",
         "declaration-property-value-no-unknown": true,
         "font-family-name-quotes": ["always-where-recommended"],

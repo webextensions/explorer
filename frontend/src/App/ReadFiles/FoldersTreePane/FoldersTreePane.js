@@ -92,18 +92,20 @@ const DirectoryTree = function ({ directoryHandle }) {
                     }
                 }}
                 loadData={async function (treeEntry) {
-                    const entries = [];
                     for await (const entry of treeEntry.directoryHandle.values()) {
                         if (entry.kind === 'directory') {
-                            console.log(entry);
-                            entries.push(entry);
+                            const thisEntry = {
+                                title: entry.name,
+                                key: entry.name,
+                                children: [],
+                                isLeaf: !(await containsDirectoryAsChild(entry)),
+                                directoryHandle: entry
+                            };
+                            treeEntry.children.push(thisEntry);
                         }
                     }
-                    setDirectoryEntries(entries);
 
                     const treeEntries = structuredClone(treeData);
-
-                    /* TODO: Pending */
 
                     setTreeData(treeEntries);
                 }}
