@@ -2,7 +2,7 @@
     "root": true,
 
     "extends": [
-        "eslint-config-ironplate/node"
+        "eslint-config-ironplate/node.js"
     ],
 
     "rules": {
